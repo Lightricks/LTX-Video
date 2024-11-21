@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.2.2
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [--fix]  # Automatically fix issues if possible.
+        types: [python]  # Ensure it only runs on .py files.
+
+  - repo: https://github.com/psf/black
+    rev: 24.2.0  # Specify the version of Black you want
+    hooks:
+      - id: black
+        name: Black code formatter
+        language_version: python3  # Use the Python version you're targeting (e.g., 3.10)
