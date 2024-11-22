@@ -12,6 +12,7 @@ This is the official repository for LTX-Video.
 * [Installation](#installation)
 * [Inference](#inference)
   * [Inference Code](#inference-code)
+  * [ComfyUI Integration](#inference-comfy)
 * [Acknowledgement](#acknowledgement)
 
 ## Introduction
@@ -71,6 +72,10 @@ For image-to-video generation:
 python inference.py --ckpt_dir 'PATH' --prompt "PROMPT" --input_image_path IMAGE_PATH --height HEIGHT --width WIDTH
 
 ```
+
+### ComfyUI Integration
+
+To use our model with ComfyUI, please follow the instructions at [https://github.com/Lightricks/ComfyUI-LTXVideo/]().
 
 ## Acknowledgement
 
