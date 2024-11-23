@@ -41,6 +41,10 @@ The codebase was tested with Python 3.10.5, CUDA version 12.2, and supports PyTo
 
 ## Installation
 
+**Prerequisites:**  
+This project uses [Git Large File Storage (Git LFS)](https://git-lfs.com/) to manage large files. Before cloning the repository, please ensure that Git LFS is installed on your system.
+
+
 ```bash
 git clone https://github.com/Lightricks/LTX-Video.git
 cd LTX-Video
