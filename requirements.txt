@@ -1,0 +1,15 @@
+torch
+torchvision
+torchaudio
+huggingface_hub
+transformers
+diffusers
+imageio
+scikit-learn
+einops
+
+tqdm
+wandb
+onnx
+av
+shutils
