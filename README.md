@@ -13,13 +13,23 @@ This is the official repository for LTX-Video.
 
 ## Table of Contents
 
-* [Introduction](#introduction)
-* [Quick start guide](#quick-start-guide)
-  * [Installation](#installation)
-  * [Inference](#inference)
-  * [ComfyUI Integration](#comfyui-integration)
-* [Model User guide](#model-user-guide)
-* [Acknowledgement](#acknowledgement)
+- [LTX-Video](#ltx-video)
+  - [Table of Contents](#table-of-contents)
+- [Introduction](#introduction)
+- [Quick Start Guide](#quick-start-guide)
+  - [Online demo](#online-demo)
+  - [Run locally](#run-locally)
+    - [Installation](#installation)
+    - [Inference](#inference)
+      - [For text-to-video generation:](#for-text-to-video-generation)
+      - [For image-to-video generation:](#for-image-to-video-generation)
+  - [ComfyUI Integration](#comfyui-integration)
+- [Model User Guide](#model-user-guide)
+  - [General tips:](#general-tips)
+    - [📝 Prompt Engineering](#-prompt-engineering)
+    - [🎮 Parameter Guide](#-parameter-guide)
+  - [More to come...](#more-to-come)
+- [Acknowledgement](#acknowledgement)
 
 # Introduction
 
@@ -35,11 +45,18 @@ with realistic and diverse content.
 | ![example9](./docs/_static/ltx-video_example_00009.gif)<br><details style="max-width: 300px; margin: auto;"><summary>A man with graying hair, a beard, and a gray shirt...</summary>A man with graying hair, a beard, and a gray shirt looks down and to his right, then turns his head to the left. The camera angle is a close-up, focused on the man's face. The lighting is dim, with a greenish tint. The scene appears to be real-life footage. Step</details> | ![example10](./docs/_static/ltx-video_example_00010.gif)<br><details style="max-width: 300px; margin: auto;"><summary>A clear, turquoise river flows through a rocky canyon...</summary>A clear, turquoise river flows through a rocky canyon, cascading over a small waterfall and forming a pool of water at the bottom.The river is the main focus of the scene, with its clear water reflecting the surrounding trees and rocks. The canyon walls are steep and rocky, with some vegetation growing on them. The trees are mostly pine trees, with their green needles contrasting with the brown and gray rocks. The overall tone of the scene is one of peace and tranquility.</details> | ![example11](./docs/_static/ltx-video_example_00011.gif)<br><details style="max-width: 300px; margin: auto;"><summary>A man in a suit enters a room and speaks to two women...</summary>A man in a suit enters a room and speaks to two women sitting on a couch. The man, wearing a dark suit with a gold tie, enters the room from the left and walks towards the center of the frame. He has short gray hair, light skin, and a serious expression. He places his right hand on the back of a chair as he approaches the couch. Two women are seated on a light-colored couch in the background. The woman on the left wears a light blue sweater and has short blonde hair. The woman on the right wears a white sweater and has short blonde hair. The camera remains stationary, focusing on the man as he enters the room. The room is brightly lit, with warm tones reflecting off the walls and furniture. The scene appears to be from a film or television show.</details> | ![example12](./docs/_static/ltx-video_example_00012.gif)<br><details style="max-width: 300px; margin: auto;"><summary>The waves crash against the jagged rocks of the shoreline...</summary>The waves crash against the jagged rocks of the shoreline, sending spray high into the air.The rocks are a dark gray color, with sharp edges and deep crevices. The water is a clear blue-green, with white foam where the waves break against the rocks. The sky is a light gray, with a few white clouds dotting the horizon.</details> |
 | ![example13](./docs/_static/ltx-video_example_00013.gif)<br><details style="max-width: 300px; margin: auto;"><summary>The camera pans across a cityscape of tall buildings...</summary>The camera pans across a cityscape of tall buildings with a circular building in the center. The camera moves from left to right, showing the tops of the buildings and the circular building in the center. The buildings are various shades of gray and white, and the circular building has a green roof. The camera angle is high, looking down at the city. The lighting is bright, with the sun shining from the upper left, casting shadows from the buildings. The scene is computer-generated imagery.</details> | ![example14](./docs/_static/ltx-video_example_00014.gif)<br><details style="max-width: 300px; margin: auto;"><summary>A man walks towards a window, looks out, and then turns around...</summary>A man walks towards a window, looks out, and then turns around. He has short, dark hair, dark skin, and is wearing a brown coat over a red and gray scarf. He walks from left to right towards a window, his gaze fixed on something outside. The camera follows him from behind at a medium distance. The room is brightly lit, with white walls and a large window covered by a white curtain. As he approaches the window, he turns his head slightly to the left, then back to the right. He then turns his entire body to the right, facing the window. The camera remains stationary as he stands in front of the window. The scene is captured in real-life footage.</details> | ![example15](./docs/_static/ltx-video_example_00015.gif)<br><details style="max-width: 300px; margin: auto;"><summary>Two police officers in dark blue uniforms and matching hats...</summary>Two police officers in dark blue uniforms and matching hats enter a dimly lit room through a doorway on the left side of the frame. The first officer, with short brown hair and a mustache, steps inside first, followed by his partner, who has a shaved head and a goatee. Both officers have serious expressions and maintain a steady pace as they move deeper into the room. The camera remains stationary, capturing them from a slightly low angle as they enter. The room has exposed brick walls and a corrugated metal ceiling, with a barred window visible in the background. The lighting is low-key, casting shadows on the officers' faces and emphasizing the grim atmosphere. The scene appears to be from a film or television show.</details> | ![example16](./docs/_static/ltx-video_example_00016.gif)<br><details style="max-width: 300px; margin: auto;"><summary>A woman with short brown hair, wearing a maroon sleeveless top...</summary>A woman with short brown hair, wearing a maroon sleeveless top and a silver necklace, walks through a room while talking, then a woman with pink hair and a white shirt appears in the doorway and yells. The first woman walks from left to right, her expression serious; she has light skin and her eyebrows are slightly furrowed. The second woman stands in the doorway, her mouth open in a yell; she has light skin and her eyes are wide. The room is dimly lit, with a bookshelf visible in the background. The camera follows the first woman as she walks, then cuts to a close-up of the second woman's face. The scene is captured in real-life footage.</details> |
 
-
 # Quick Start Guide
-The codebase was tested with Python 3.10.5, CUDA version 12.2, and supports PyTorch >= 2.1.2.
 
-## Installation
+## Online demo
+The model is accessible right away via following links:
+- [HF Playground](https://huggingface.co/spaces/Lightricks/LTX-Video-Playground)
+- [Fal.ai text-to-video](https://fal.ai/models/fal-ai/ltx-video)
+- [Fal.ai image-to-video](https://fal.ai/models/fal-ai/ltx-video/image-to-video)
+
+## Run locally
+
+### Installation
+The codebase was tested with Python 3.10.5, CUDA version 12.2, and supports PyTorch >= 2.1.2.
 
 ```bash
 git clone https://github.com/Lightricks/LTX-Video.git
@@ -60,7 +77,7 @@ model_path = 'PATH'   # The local directory to save downloaded checkpoint
 snapshot_download("Lightricks/LTX-Video", local_dir=model_path, local_dir_use_symlinks=False, repo_type='model')
 ```
 
-## Inference
+### Inference
 
 To use our model, please follow the inference code in [inference.py](./inference.py):
 
@@ -82,9 +99,25 @@ To use our model with ComfyUI, please follow the instructions at [https://github
 # Model User Guide
 
 ## General tips:
-* The model works on resolutions that are divisible by 32 and number of frames that are divisible by 8 + 1 (e.g. 257). In case the resolution or number of frames are not divisible by 32 or 8 + 1, the input will be padded with -1 and then cropped to the desired resolution and number of frames.
-* The model works best on resolutions under 720 x 1280 and number of frames below 257.
-* Prompts should be in English. The more elaborate the better. Good prompt looks like `The turquoise waves crash against the dark, jagged rocks of the shore, sending white foam spraying into the air. The scene is dominated by the stark contrast between the bright blue water and the dark, almost black rocks. The water is a clear, turquoise color, and the waves are capped with white foam. The rocks are dark and jagged, and they are covered in patches of green moss. The shore is lined with lush green vegetation, including trees and bushes. In the background, there are rolling hills covered in dense forest. The sky is cloudy, and the light is dim.`
+### 📝 Prompt Engineering
+
+When writing prompts, focus on detailed, chronological descriptions of actions and scenes. Include specific movements, appearances, camera angles, and environmental details - all in a single flowing paragraph. Start directly with the action, and keep descriptions literal and precise. Think like a cinematographer describing a shot list. Keep within 200 words. For best results, build your prompts using this structure:
+
+* Start with main action in a single sentence
+* Add specific details about movements and gestures
+* Describe character/object appearances precisely
+* Include background and environment details
+* Specify camera angles and movements
+* Describe lighting and colors
+* Note any changes or sudden events
+* See [examples](#introduction) for more inspiration.
+
+### 🎮 Parameter Guide
+
+* Resolution Preset: Higher resolutions for detailed scenes, lower for faster generation and simpler scenes. The model works on resolutions that are divisible by 32 and number of frames that are divisible by 8 + 1 (e.g. 257). In case the resolution or number of frames are not divisible by 32 or 8 + 1, the input will be padded with -1 and then cropped to the desired resolution and number of frames. The model works best on resolutions under 720 x 1280 and number of frames below 257
+* Seed: Save seed values to recreate specific styles or compositions you like
+* Guidance Scale: 3-3.5 are the recommended values
+* Inference Steps: More steps (40+) for quality, fewer steps (20-30) for speed
 
 ## More to come...
 
