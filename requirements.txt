@@ -7,6 +7,9 @@ diffusers
 imageio
 scikit-learn
 einops
+sentencepiece
+beautifulsoup4
+ftfy
 
 tqdm
 wandb
