@@ -1,0 +1,24 @@
+# Use an official Python image as the base
+FROM python:3.10.5
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the repository contents into the container
+COPY . .
+
+# Install system-level dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
+
+EXPOSE 8000
+
+# This will be the default command to run the application
+CMD ["python", "main.py"]

@@ -69,6 +69,32 @@ model_path = 'PATH'   # The local directory to save downloaded checkpoint
 snapshot_download("Lightricks/LTX-Video", local_dir=model_path, local_dir_use_symlinks=False, repo_type='model')
 ```
 
+### Docker Usage
+
+#### Building the Docker Image
+Run the following command to build the Docker image:
+
+```bash
+docker build -t ltx-video .
+```
+#### Run the Docker Container
+To start the container:
+
+```bash
+docker run --gpus all -it --rm -p 8000:8000 ltx-video
+```
+#### Access the Running Container
+To access the container's shell:
+
+```bash
+docker exec -it <container_id_or_name> /bin/bash
+```
+Replace <container_id_or_name> with the container's ID or name, which you can find with:
+```bash
+docker ps
+```
+
+
 ### Inference
 
 To use our model, please follow the inference code in [inference.py](./inference.py):
