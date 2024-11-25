@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  ltx-video:
+    build:
+      context: .
+    ports:
+      - "8000:8000" 
+    volumes:
+      - .:/app 
+    environment:
+      - PYTHONUNBUFFERED=1
+    runtime: nvidia # This will enable GPU support 
