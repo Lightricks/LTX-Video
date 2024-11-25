@@ -29,7 +29,7 @@ MAX_WIDTH = 1280
 MAX_NUM_FRAMES = 257
 
 
-def load_vae(vae_dir):
+def load_vae(vae_dir, device):
     vae_ckpt_path = vae_dir / "vae_diffusion_pytorch_model.safetensors"
     vae_config_path = vae_dir / "config.json"
     with open(vae_config_path, "r") as f:
@@ -37,20 +37,18 @@ def load_vae(vae_dir):
     vae = CausalVideoAutoencoder.from_config(vae_config)
     vae_state_dict = safetensors.torch.load_file(vae_ckpt_path)
     vae.load_state_dict(vae_state_dict)
-    if torch.cuda.is_available():
-        vae = vae.cuda()
+    vae = vae.to(device=device)
     return vae.to(torch.bfloat16)
 
 
-def load_unet(unet_dir):
+def load_unet(unet_dir, device):
     unet_ckpt_path = unet_dir / "unet_diffusion_pytorch_model.safetensors"
     unet_config_path = unet_dir / "config.json"
     transformer_config = Transformer3DModel.load_config(unet_config_path)
     transformer = Transformer3DModel.from_config(transformer_config)
     unet_state_dict = safetensors.torch.load_file(unet_ckpt_path)
     transformer.load_state_dict(unet_state_dict, strict=True)
-    if torch.cuda.is_available():
-        transformer = transformer.cuda()
+    transformer = transformer.to(device=device)
     return transformer
 
 
@@ -89,7 +87,6 @@ def load_image_to_tensor_with_resize_and_crop(
 def calculate_padding(
     source_height: int, source_width: int, target_height: int, target_width: int
 ) -> tuple[int, int, int, int]:
-
     # Calculate total padding needed
     pad_height = target_height - source_height
     pad_width = target_width - source_width
@@ -157,8 +154,6 @@ def seed_everething(seed: int):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
 
 
 def main():
@@ -233,6 +228,13 @@ def main():
         help="Denoise in bfloat16",
     )
 
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda",
+        help="Device used for inference",
+    )
+
     # Prompts
     parser.add_argument(
         "--prompt",
@@ -253,6 +255,13 @@ def main():
     logger.warning(f"Running generation with arguments: {args}")
 
     seed_everething(args.seed)
+
+    device = args.device
+    if device == "cuda" and not torch.cuda.is_available():
+        logger.warning(
+            "Device 'cuda' is not available. Falling back to 'cpu'. Use --device to specify device."
+        )
+        device = "cpu"
 
     output_dir = (
         Path(args.output_path)
@@ -303,15 +312,14 @@ def main():
     scheduler_dir = ckpt_dir / "scheduler"
 
     # Load models
-    vae = load_vae(vae_dir)
-    unet = load_unet(unet_dir)
+    vae = load_vae(vae_dir, device)
+    unet = load_unet(unet_dir, device)
     scheduler = load_scheduler(scheduler_dir)
     patchifier = SymmetricPatchifier(patch_size=1)
     text_encoder = T5EncoderModel.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder"
     )
-    if torch.cuda.is_available():
-        text_encoder = text_encoder.to("cuda")
+    text_encoder = text_encoder.to(device=device)
     tokenizer = T5Tokenizer.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer"
     )
@@ -330,8 +338,7 @@ def main():
     }
 
     pipeline = LTXVideoPipeline(**submodel_dict)
-    if torch.cuda.is_available():
-        pipeline = pipeline.to("cuda")
+    pipeline = pipeline.to(device=device)
 
     # Prepare input for the pipeline
     sample = {
@@ -342,9 +349,7 @@ def main():
         "media_items": media_items,
     }
 
-    generator = torch.Generator(
-        device="cuda" if torch.cuda.is_available() else "cpu"
-    ).manual_seed(args.seed)
+    generator = torch.Generator(device=device).manual_seed(args.seed)
 
     images = pipeline(
         num_inference_steps=args.num_inference_steps,
