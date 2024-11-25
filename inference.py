@@ -48,7 +48,7 @@ def load_unet(unet_dir):
     transformer = Transformer3DModel.from_config(transformer_config)
     unet_state_dict = safetensors.torch.load_file(unet_ckpt_path)
     transformer.load_state_dict(unet_state_dict, strict=True)
-    transformer = transformer.to(torch.bfloat16)
+    
     if torch.cuda.is_available():
         transformer = transformer.cuda()
     return transformer
@@ -317,8 +317,7 @@ def main():
     text_encoder = T5EncoderModel.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder"
     ).to(torch.bfloat16)
-    if torch.cuda.is_available():
-        text_encoder = text_encoder # .to(torch.bfloat16).to("cuda")
+
     tokenizer = T5Tokenizer.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer"
     )
