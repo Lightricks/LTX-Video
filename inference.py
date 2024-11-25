@@ -23,7 +23,6 @@ from ltx_video.pipelines.pipeline_ltx_video import LTXVideoPipeline
 from ltx_video.schedulers.rf import RectifiedFlowScheduler
 from ltx_video.utils.conditioning_method import ConditioningMethod
 
-
 MAX_HEIGHT = 720
 MAX_WIDTH = 1280
 MAX_NUM_FRAMES = 257
@@ -49,6 +48,7 @@ def load_unet(unet_dir):
     transformer = Transformer3DModel.from_config(transformer_config)
     unet_state_dict = safetensors.torch.load_file(unet_ckpt_path)
     transformer.load_state_dict(unet_state_dict, strict=True)
+    transformer = transformer.to(torch.bfloat16)
     if torch.cuda.is_available():
         transformer = transformer.cuda()
     return transformer
@@ -246,6 +246,13 @@ def main():
         help="Negative prompt for undesired features",
     )
 
+    parser.add_argument(
+        "--disable_load_needed_only",
+        action="store_true",
+        default=False,
+        help="disables load_needed_only, which loads text encoder only when needed and unloads transformer model before vae decoding",
+    )
+
     logger = logging.get_logger(__name__)
 
     args = parser.parse_args()
@@ -309,9 +316,9 @@ def main():
     patchifier = SymmetricPatchifier(patch_size=1)
     text_encoder = T5EncoderModel.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder"
-    )
+    ).to(torch.bfloat16)
     if torch.cuda.is_available():
-        text_encoder = text_encoder.to("cuda")
+        text_encoder = text_encoder # .to(torch.bfloat16).to("cuda")
     tokenizer = T5Tokenizer.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer"
     )
@@ -330,7 +337,7 @@ def main():
     }
 
     pipeline = LTXVideoPipeline(**submodel_dict)
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and args.disable_load_needed_only:
         pipeline = pipeline.to("cuda")
 
     # Prepare input for the pipeline
@@ -366,6 +373,7 @@ def main():
             else ConditioningMethod.UNCONDITIONAL
         ),
         mixed_precision=not args.bfloat16,
+        load_needed_only=not args.disable_load_needed_only
     ).images
 
     # Crop the padded images to the desired resolution and number of frames
