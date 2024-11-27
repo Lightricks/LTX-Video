@@ -683,10 +683,10 @@ class LTXVideoPipeline(DiffusionPipeline):
 
         if latents is None:
             latents = randn_tensor(
-                shape, generator=generator, device=device, dtype=dtype
+                shape, generator=generator, device=generator.device, dtype=dtype
             )
         elif latents_mask is not None:
-            noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+            noise = randn_tensor(shape, generator=generator, device=generator.device, dtype=dtype)
             latents = latents * latents_mask[..., None] + noise * (
                 1 - latents_mask[..., None]
             )
