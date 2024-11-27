@@ -22,13 +22,20 @@ dependencies = [
     "transformers~=4.44.2",
     "sentencepiece>=0.1.96",
     "huggingface-hub~=0.25.2",
-    "einops"
+    "einops",
+    "fastapi",
+    "pydantic",
+    "python-dotenv",
+    "uvicorn",
+    "imageio[ffmpeg]"
 ]
 
 [project.optional-dependencies]
 # Instead of thinking of them as optional, think of them as specific modes
 inference-script = [
     "accelerate",
-    "matplotlib",
-    "imageio[ffmpeg]"
+    "matplotlib"
 ]
+
+[tool.setuptools]
+packages = ["ltx_video"]

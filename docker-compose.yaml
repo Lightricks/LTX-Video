@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  ltx-video-api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: ltx-video-api
+    container_name: ltx-video-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+    environment:
+      - CKPT_DIR=/app/models
+      - OUTPUT_DIR=/app/outputs
+      - LOG_LEVEL=INFO
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
