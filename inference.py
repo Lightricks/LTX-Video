@@ -316,8 +316,6 @@ def main():
     text_encoder = T5EncoderModel.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder"
     ).to(torch.bfloat16)
-    if torch.cuda.is_available():
-        text_encoder = text_encoder # .to(torch.bfloat16).to("cuda")
     tokenizer = T5Tokenizer.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer"
     )
