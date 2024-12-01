@@ -30,6 +30,14 @@ MAX_HEIGHT = 720
 MAX_WIDTH = 1280
 MAX_NUM_FRAMES = 257
 
+g_vae=None
+g_unet=None
+g_scheduler=None
+g_patchifier=None
+g_text_encoder=None
+g_tokenizer=None
+g_pipeline=None
+
 def load_vae(vae_dir: Path) -> CausalVideoAutoencoder:
     """
     Load a video autoencoder model (VAE) from a specified directory.
@@ -433,6 +441,8 @@ def run_pipeline(
         ...     height=512, width=768, num_frames=150
         ... )
     """
+    global g_vae, g_unet, g_scheduler, g_patchifier, g_text_encoder, g_tokenizer, g_pipeline
+
     logger = logging.get_logger(__name__)
     logger.warning("Running pipeline with provided parameters.")
 
@@ -457,28 +467,40 @@ def run_pipeline(
         media_items = None
 
     ckpt_dir = Path(ckpt_dir)
-    vae = load_vae(ckpt_dir / "vae")
-    unet = load_unet(ckpt_dir / "unet")
-    scheduler = load_scheduler(ckpt_dir / "scheduler")
-    patchifier = SymmetricPatchifier(patch_size=1)
-    text_encoder = T5EncoderModel.from_pretrained("PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder")
-    if torch.cuda.is_available():
-        text_encoder = text_encoder.to("cuda")
-    tokenizer = T5Tokenizer.from_pretrained("PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer")
 
-    if bfloat16 and unet.dtype != torch.bfloat16:
-        unet = unet.to(torch.bfloat16)
+    if g_vae is None:
+        g_vae = load_vae(ckpt_dir / "vae")
 
-    pipeline = LTXVideoPipeline(
-        transformer=unet,
-        patchifier=patchifier,
-        text_encoder=text_encoder,
-        tokenizer=tokenizer,
-        scheduler=scheduler,
-        vae=vae
-    )
-    if torch.cuda.is_available():
-        pipeline = pipeline.to("cuda")
+    if g_unet is None:
+        g_unet = load_unet(ckpt_dir / "unet")
+        if bfloat16 and g_unet.dtype != torch.bfloat16:
+            g_unet = g_unet.to(torch.bfloat16)
+
+    if g_scheduler is None:
+        g_scheduler = load_scheduler(ckpt_dir / "scheduler")
+
+    if g_patchifier is None:
+        g_patchifier = SymmetricPatchifier(patch_size=1)
+
+    if g_text_encoder is None:
+        g_text_encoder = T5EncoderModel.from_pretrained("PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder")
+        if torch.cuda.is_available():
+            g_text_encoder = g_text_encoder.to("cuda")
+
+    if g_tokenizer is None:
+        g_tokenizer = T5Tokenizer.from_pretrained("PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer")
+
+    if g_pipeline is None:
+        g_pipeline = LTXVideoPipeline(
+            transformer=g_unet,
+            patchifier=g_patchifier,
+            text_encoder=g_text_encoder,
+            tokenizer=g_tokenizer,
+            scheduler=g_scheduler,
+            vae=g_vae
+        )
+        if torch.cuda.is_available():
+            g_pipeline = g_pipeline.to("cuda")
 
     sample = {
         "prompt": prompt,
@@ -490,7 +512,7 @@ def run_pipeline(
 
     generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
 
-    images = pipeline(
+    images = g_pipeline(
         num_inference_steps=num_inference_steps,
         num_images_per_prompt=num_images_per_prompt,
         guidance_scale=guidance_scale,
