@@ -522,29 +522,29 @@ def run_pipeline(
         video_np = images[i].permute(1, 2, 3, 0).cpu().float().numpy()
         # Unnormalizing images to [0, 255] range
         video_np = (video_np * 255).astype(np.uint8)
-        fps = args.frame_rate
+        fps = frame_rate
         height, width = video_np.shape[1:3]
         # In case a single image is generated
         if video_np.shape[0] == 1:
             output_filename = get_unique_filename(
                 f"image_output_{i}",
                 ".png",
-                prompt=args.prompt,
-                seed=args.seed,
+                prompt=prompt,
+                seed=seed,
                 resolution=(height, width, num_frames),
                 dir=output_dir,
             )
             imageio.imwrite(output_filename, video_np[0])
         else:
-            if args.input_image_path:
+            if input_image_path:
                 base_filename = f"img_to_vid_{i}"
             else:
                 base_filename = f"text_to_vid_{i}"
             output_filename = get_unique_filename(
                 base_filename,
                 ".mp4",
-                prompt=args.prompt,
-                seed=args.seed,
+                prompt=prompt,
+                seed=seed,
                 resolution=(height, width, num_frames),
                 dir=output_dir,
             )
@@ -555,7 +555,7 @@ def run_pipeline(
                     video.append_data(frame)
 
             # Write condition image
-            if args.input_image_path:
+            if input_image_path:
                 reference_image = (
                     (
                         media_items_prepad[0, :, 0].permute(1, 2, 0).cpu().data.numpy()
@@ -568,8 +568,8 @@ def run_pipeline(
                     get_unique_filename(
                         base_filename,
                         ".png",
-                        prompt=args.prompt,
-                        seed=args.seed,
+                        prompt=prompt,
+                        seed=seed,
                         resolution=(height, width, num_frames),
                         dir=output_dir,
                         endswith="_condition",
