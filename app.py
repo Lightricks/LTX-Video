@@ -1,6 +1,6 @@
 import gradio as gr
 from pathlib import Path
-from inference import run_pipeline
+import inference
 
 def gradio_interface(
     ckpt_dir: str,
@@ -47,7 +47,7 @@ def gradio_interface(
 
     # Run the pipeline
     try:
-        run_pipeline(**args)
+        inference.run_pipeline(**args)
         return f"Generation completed. Output saved to: {args['output_path'] or 'outputs/'}"
     except Exception as e:
         return f"Error: {str(e)}"
@@ -71,8 +71,8 @@ with gr.Blocks() as app:
 
     with gr.Row():
         seed = gr.Number(label="Seed", value=171198, precision=0)
-        num_inference_steps = gr.Slider(label="Number of Inference Steps", minimum=1, maximum=100, value=40)
-        num_images_per_prompt = gr.Slider(label="Number of Images per Prompt", minimum=1, maximum=10, value=1)
+        num_inference_steps = gr.Slider(label="Number of Inference Steps", minimum=1, maximum=100, value=40, step=1)
+        num_images_per_prompt = gr.Slider(label="Number of Images per Prompt", minimum=1, maximum=10, value=1, step=1)
         guidance_scale = gr.Number(label="Guidance Scale", value=3, precision=2)
 
     with gr.Row():
