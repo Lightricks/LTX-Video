@@ -1,28 +1,35 @@
 import gradio as gr
 from pathlib import Path
-from inference import main as run_pipeline
+from inference import run_pipeline
 
 def gradio_interface(
-    ckpt_dir,
-    input_video_path,
-    input_image_path,
-    output_path,
-    seed,
-    num_inference_steps,
-    num_images_per_prompt,
-    guidance_scale,
-    height,
-    width,
-    num_frames,
-    frame_rate,
-    bfloat16,
-    prompt,
-    negative_prompt,
-):
+    ckpt_dir: str,
+    input_image_path: Path,
+    output_path: str,
+    seed: int,
+    num_inference_steps: int,
+    num_images_per_prompt: int,
+    guidance_scale: float,
+    height: int,
+    width: int,
+    num_frames: int,
+    frame_rate: int,
+    bfloat16: bool,
+    prompt: str,
+    negative_prompt: str,
+) -> str:
+    """
+    Gradio interface wrapper for the video generation pipeline.
+
+    Args:
+        (All arguments correspond to the updated run_pipeline function in inference.py)
+    
+    Returns:
+        str: Message indicating success or the error encountered during generation.
+    """
     # Prepare arguments as a dictionary
     args = {
         "ckpt_dir": ckpt_dir,
-        "input_video_path": input_video_path if input_video_path else None,
         "input_image_path": input_image_path if input_image_path else None,
         "output_path": output_path if output_path else None,
         "seed": int(seed),
@@ -45,27 +52,29 @@ def gradio_interface(
     except Exception as e:
         return f"Error: {str(e)}"
 
-
 # Gradio interface setup
 with gr.Blocks() as app:
     gr.Markdown("## Video Generation Interface")
-    
+
     with gr.Row():
         prompt = gr.Textbox(label="Prompt", placeholder="Enter your prompt")
-        negative_prompt = gr.Textbox(label="Negative Prompt", value="worst quality, inconsistent motion, blurry, jittery, distorted")
-    
+        negative_prompt = gr.Textbox(
+            label="Negative Prompt", value="worst quality, inconsistent motion, blurry, jittery, distorted"
+        )
+
     with gr.Row():
         ckpt_dir = gr.Textbox(label="Checkpoint Directory", placeholder="Path to model checkpoints", value="PATH")
-        input_video_path = gr.File(label="Input Video Path (Optional)", file_types=[".mp4", ".mov", ".avi"])
         input_image_path = gr.File(label="Input Image Path (Optional)", file_types=[".jpg", ".png"])
-        output_path = gr.Textbox(label="Output Path (Optional)", placeholder="Leave blank to use default output directory")
+        output_path = gr.Textbox(
+            label="Output Path (Optional)", placeholder="Leave blank to use default output directory"
+        )
 
     with gr.Row():
         seed = gr.Number(label="Seed", value=171198, precision=0)
         num_inference_steps = gr.Slider(label="Number of Inference Steps", minimum=1, maximum=100, value=40)
         num_images_per_prompt = gr.Slider(label="Number of Images per Prompt", minimum=1, maximum=10, value=1)
         guidance_scale = gr.Number(label="Guidance Scale", value=3, precision=2)
-    
+
     with gr.Row():
         height = gr.Slider(label="Height", minimum=64, maximum=1080, value=480, step=32)
         width = gr.Slider(label="Width", minimum=64, maximum=1920, value=704, step=32)
@@ -81,7 +90,6 @@ with gr.Blocks() as app:
         gradio_interface,
         inputs=[
             ckpt_dir,
-            input_video_path,
             input_image_path,
             output_path,
             seed,
