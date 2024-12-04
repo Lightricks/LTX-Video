@@ -42,6 +42,7 @@ with realistic and diverse content.
 ## Online demo
 The model is accessible right away via following links:
 - [HF Playground](https://huggingface.co/spaces/Lightricks/LTX-Video-Playground)
+- [Replicate text-to-video and image-to-video](https://replicate.com/fofr/ltx-video)
 - [Fal.ai text-to-video](https://fal.ai/models/fal-ai/ltx-video)
 - [Fal.ai image-to-video](https://fal.ai/models/fal-ai/ltx-video/image-to-video)
 
