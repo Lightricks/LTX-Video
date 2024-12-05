@@ -76,8 +76,8 @@ with gr.Blocks() as app:
         guidance_scale = gr.Number(label="Guidance Scale", value=3, precision=2)
 
     with gr.Row():
-        height = gr.Slider(label="Height", minimum=64, maximum=1080, value=480, step=32)
-        width = gr.Slider(label="Width", minimum=64, maximum=1920, value=704, step=32)
+        height = gr.Slider(label="Height", minimum=64, maximum=1080, value=512, step=32)
+        width = gr.Slider(label="Width", minimum=64, maximum=1920, value=768, step=32)
         num_frames = gr.Slider(label="Number of Frames", minimum=1, maximum=300, value=121)
         frame_rate = gr.Slider(label="Frame Rate", minimum=1, maximum=60, value=24)
 
