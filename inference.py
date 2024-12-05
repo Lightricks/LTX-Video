@@ -450,8 +450,6 @@ def run_pipeline(
     logger = logging.get_logger(__name__)
     logger.warning("Running pipeline with provided parameters.")
 
-    seed_everything(seed)
-
     output_dir = Path(output_path) if output_path else Path(f"outputs/{datetime.today().strftime('%Y-%m-%d')}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -514,97 +512,79 @@ def run_pipeline(
         "media_items": media_items,
     }
 
-    generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
+    if (seed==-1):
+        seed=random.randrange(1, 999999999)
 
-    images = g_pipeline(
-        num_inference_steps=num_inference_steps,
-        num_images_per_prompt=num_images_per_prompt,
-        guidance_scale=guidance_scale,
-        generator=generator,
-        output_type="pt",
-        height=height_padded,
-        width=width_padded,
-        num_frames=num_frames_padded,
-        frame_rate=frame_rate,
-        **sample,
-        is_video=True,
-        vae_per_channel_normalize=True,
-        conditioning_method=(ConditioningMethod.FIRST_FRAME if media_items is not None else ConditioningMethod.UNCONDITIONAL),
-        mixed_precision=not bfloat16,
-    ).images
+    for seed in range(seed,seed+num_images_per_prompt):
+        seed_everything(seed)
+        generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
 
-    # Crop the padded images to the desired resolution and number of frames
-    (pad_left, pad_right, pad_top, pad_bottom) = padding
-    pad_bottom = -pad_bottom
-    pad_right = -pad_right
-    if pad_bottom == 0:
-        pad_bottom = images.shape[3]
-    if pad_right == 0:
-        pad_right = images.shape[4]
-    images = images[:, :, :num_frames, pad_top:pad_bottom, pad_left:pad_right]
+        images = g_pipeline(
+            num_inference_steps=num_inference_steps,
+            num_images_per_prompt=1,
+            guidance_scale=guidance_scale,
+            generator=generator,
+            output_type="pt",
+            height=height_padded,
+            width=width_padded,
+            num_frames=num_frames_padded,
+            frame_rate=frame_rate,
+            **sample,
+            is_video=True,
+            vae_per_channel_normalize=True,
+            conditioning_method=(ConditioningMethod.FIRST_FRAME if media_items is not None else ConditioningMethod.UNCONDITIONAL),
+            mixed_precision=not bfloat16,
+        ).images
 
-    for i in range(images.shape[0]):
-        # Gathering from B, C, F, H, W to C, F, H, W and then permuting to F, H, W, C
-        video_np = images[i].permute(1, 2, 3, 0).cpu().float().numpy()
-        # Unnormalizing images to [0, 255] range
-        video_np = (video_np * 255).astype(np.uint8)
-        fps = frame_rate
-        height, width = video_np.shape[1:3]
-        # In case a single image is generated
-        if video_np.shape[0] == 1:
-            output_filename = get_unique_filename(
-                f"image_output_{i}",
-                ".png",
-                prompt=prompt,
-                seed=seed,
-                resolution=(height, width, num_frames),
-                dir=output_dir,
-            )
-            imageio.imwrite(output_filename, video_np[0])
-        else:
-            if input_image_path:
-                base_filename = f"img_to_vid_{i}"
+        # Crop the padded images to the desired resolution and number of frames
+        (pad_left, pad_right, pad_top, pad_bottom) = padding
+        pad_bottom = -pad_bottom
+        pad_right = -pad_right
+        if pad_bottom == 0:
+            pad_bottom = images.shape[3]
+        if pad_right == 0:
+            pad_right = images.shape[4]
+        images = images[:, :, :num_frames, pad_top:pad_bottom, pad_left:pad_right]
+
+        for i in range(images.shape[0]):
+            # Gathering from B, C, F, H, W to C, F, H, W and then permuting to F, H, W, C
+            video_np = images[i].permute(1, 2, 3, 0).cpu().float().numpy()
+            # Unnormalizing images to [0, 255] range
+            video_np = (video_np * 255).astype(np.uint8)
+            fps = frame_rate
+            height, width = video_np.shape[1:3]
+            # In case a single image is generated
+            if video_np.shape[0] == 1:
+                output_filename = get_unique_filename(
+                    f"image_output_{i}",
+                    ".png",
+                    prompt=prompt,
+                    seed=seed,
+                    resolution=(height, width, num_frames),
+                    dir=output_dir,
+                )
+                imageio.imwrite(output_filename, video_np[0])
             else:
-                base_filename = f"text_to_vid_{i}"
-            output_filename = get_unique_filename(
-                base_filename,
-                ".mp4",
-                prompt=prompt,
-                seed=seed,
-                resolution=(height, width, num_frames),
-                dir=output_dir,
-            )
-
-            # Write video
-            with imageio.get_writer(output_filename, fps=fps) as video:
-                for frame in video_np:
-                    video.append_data(frame)
-
-            # Write condition image
-            if input_image_path:
-                reference_image = (
-                    (
-                        media_items_prepad[0, :, 0].permute(1, 2, 0).cpu().data.numpy()
-                        + 1.0
-                    )
-                    / 2.0
-                    * 255
-                )
-                imageio.imwrite(
-                    get_unique_filename(
-                        base_filename,
-                        ".png",
-                        prompt=prompt,
-                        seed=seed,
-                        resolution=(height, width, num_frames),
-                        dir=output_dir,
-                        endswith="_condition",
-                    ),
-                    reference_image.astype(np.uint8),
+                if input_image_path:
+                    base_filename = f"img_to_vid_{i}"
+                else:
+                    base_filename = f"text_to_vid_{i}"
+                output_filename = get_unique_filename(
+                    base_filename,
+                    ".mp4",
+                    prompt=prompt,
+                    seed=seed,
+                    resolution=(height, width, num_frames),
+                    dir=output_dir,
                 )
 
-    logger.warning(f"Output saved to {output_dir}")
+                # Write video
+                with imageio.get_writer(output_filename, fps=fps) as video:
+                    for frame in video_np:
+                        video.append_data(frame)
 
+        logger.warning(f"Output {seed} saved to {output_dir}")
+    print("Complete.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the pipeline from the command line.")
