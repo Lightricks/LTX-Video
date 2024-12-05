@@ -72,7 +72,7 @@ with gr.Blocks() as app:
     with gr.Row():
         seed = gr.Number(label="Seed", value=171198, precision=0)
         num_inference_steps = gr.Slider(label="Number of Inference Steps", minimum=1, maximum=100, value=40, step=1)
-        num_images_per_prompt = gr.Slider(label="Number of Images per Prompt", minimum=1, maximum=10, value=1, step=1)
+        num_images_per_prompt = gr.Slider(label="Number of Videos per Prompt", minimum=1, maximum=100, value=1, step=1)
         guidance_scale = gr.Number(label="Guidance Scale", value=3, precision=2)
 
     with gr.Row():
