@@ -67,6 +67,7 @@ def load_vae(vae_dir: Path) -> CausalVideoAutoencoder:
         >>> vae_model = load_vae(Path("models/vae"))
         >>> print(vae_model)
     """
+    print("Loading VAE")
     vae_ckpt_path = vae_dir / "vae_diffusion_pytorch_model.safetensors"
     vae_config_path = vae_dir / "config.json"
     with open(vae_config_path, "r") as f:
@@ -110,6 +111,7 @@ def load_unet(unet_dir: Path) -> Transformer3DModel:
         >>> unet_model = load_unet(Path("models/unet"))
         >>> print(unet_model)
     """
+    print("Loading UNET")
     unet_ckpt_path = unet_dir / "unet_diffusion_pytorch_model.safetensors"
     unet_config_path = unet_dir / "config.json"
     transformer_config = Transformer3DModel.load_config(unet_config_path)
@@ -148,6 +150,7 @@ def load_scheduler(scheduler_dir: Path) -> RectifiedFlowScheduler:
         >>> scheduler = load_scheduler(Path("models/scheduler"))
         >>> print(scheduler)
     """
+    print("Loading Scheduler")
     scheduler_config_path = scheduler_dir / "scheduler_config.json"
     scheduler_config = RectifiedFlowScheduler.load_config(scheduler_config_path)
     return RectifiedFlowScheduler.from_config(scheduler_config)
