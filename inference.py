@@ -298,7 +298,8 @@ def get_unique_filename(
     resolution: tuple[int, int, int],
     dir: Path,
     endswith: Optional[str] = None,
-    index_range: int = 1000
+    index_range: int = 1000,
+    override_filename: str = None
 ) -> Path:
     """
     Generate a unique filename by appending an incremental index to the base name.
@@ -343,7 +344,12 @@ def get_unique_filename(
         >>> print(filename)
         outputs/output_sample-prompt_42_512x768x121_0_v1.mp4
     """
-    base_filename = f"{base}_{convert_prompt_to_filename(prompt, max_len=30)}_{seed}_{resolution[0]}x{resolution[1]}x{resolution[2]}"
+    print(f"get_unique_filename: override_filename: {override_filename}")
+
+    if (override_filename is None):
+        base_filename = f"{base}_{convert_prompt_to_filename(prompt, max_len=30)}_{seed}_{resolution[0]}x{resolution[1]}x{resolution[2]}"
+    else:
+        base_filename = f"{override_filename}_{seed}"
     for i in range(index_range):
         filename = dir / f"{base_filename}_{i}{endswith if endswith else ''}{ext}"
         if not os.path.exists(filename):
@@ -391,7 +397,8 @@ def run_pipeline(
     output_path: Optional[Union[str, Path]] = None,
     bfloat16: bool = False,
     extend_clip: bool = False,
-    restart_first_frame: bool = False
+    restart_first_frame: bool = False,
+    override_filename: str = None
 ) -> None:
     """
     Run the video generation pipeline and save the results.
@@ -448,6 +455,9 @@ def run_pipeline(
         ... )
     """
     global g_vae, g_unet, g_scheduler, g_patchifier, g_text_encoder, g_tokenizer, g_pipeline
+
+    print(f"inference.run_pipeline: override_filename: {override_filename}")
+
 
     logger = logging.get_logger(__name__)
     logger.warning("Running pipeline with provided parameters.")
@@ -509,6 +519,8 @@ def run_pipeline(
     if (seed==-1):
         seed=random.randrange(1, 999999999)
 
+    video_sequence=[]
+
     for seed in range(seed,seed+num_images_per_prompt):
         seed_everything(seed)
 
@@ -565,6 +577,7 @@ def run_pipeline(
                     seed=seed,
                     resolution=(height, width, num_frames),
                     dir=output_dir,
+                    override_filename=override_filename,
                 )
                 imageio.imwrite(output_filename, video_np[0])
             else:
@@ -579,6 +592,7 @@ def run_pipeline(
                     seed=seed,
                     resolution=(height, width, num_frames),
                     dir=output_dir,
+                    override_filename=override_filename,
                 )
 
                 # Write video
@@ -592,6 +606,7 @@ def run_pipeline(
                 imageio.imwrite(last_filename, video_np[-1])
 
                 if (extend_clip):
+                    video_sequence.append(output_filename)
                     if (restart_first_frame):
                         media_items_prepad = load_image_to_tensor_with_resize_and_crop(first_filename, height, width)
                     else:
