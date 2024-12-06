@@ -17,6 +17,8 @@ def gradio_interface(
     bfloat16: bool,
     prompt: str,
     negative_prompt: str,
+    extend_clip:bool,
+    restart_first_frame:bool
 ) -> str:
     """
     Gradio interface wrapper for the video generation pipeline.
@@ -43,6 +45,8 @@ def gradio_interface(
         "bfloat16": bool(bfloat16),
         "prompt": prompt,
         "negative_prompt": negative_prompt,
+        "extend_clip": extend_clip,
+        "restart_first_frame" : restart_first_frame
     }
 
     # Run the pipeline
@@ -70,18 +74,21 @@ with gr.Blocks() as app:
         )
 
     with gr.Row():
-        seed = gr.Number(label="Seed", value=171198, precision=0)
+        seed = gr.Number(label="Seed", value=-1, precision=0)
         num_inference_steps = gr.Slider(label="Number of Inference Steps", minimum=1, maximum=100, value=40, step=1)
         num_images_per_prompt = gr.Slider(label="Number of Videos per Prompt", minimum=1, maximum=100, value=1, step=1)
         guidance_scale = gr.Number(label="Guidance Scale", value=3, precision=2)
 
     with gr.Row():
-        height = gr.Slider(label="Height", minimum=64, maximum=1080, value=512, step=32)
+        height = gr.Slider(label="Height", minimum=64, maximum=1080, value=416, step=32)
         width = gr.Slider(label="Width", minimum=64, maximum=1920, value=768, step=32)
         num_frames = gr.Slider(label="Number of Frames", minimum=1, maximum=300, value=121)
         frame_rate = gr.Slider(label="Frame Rate", minimum=1, maximum=60, value=24)
 
-    bfloat16 = gr.Checkbox(label="Enable bfloat16 Precision", value=False)
+    with gr.Row():
+        bfloat16 = gr.Checkbox(label="Enable bfloat16 Precision", value=False)
+        extendClip = gr.Checkbox(label="Create extended clip series", value=True)
+        restartFirstFrame = gr.Checkbox(label="Restart extended clip with first frame", value=False)
 
     generate_button = gr.Button("Generate Video")
     output_message = gr.Textbox(label="Output Message")
@@ -103,6 +110,8 @@ with gr.Blocks() as app:
             bfloat16,
             prompt,
             negative_prompt,
+            extendClip,
+            restartFirstFrame
         ],
         outputs=output_message,
     )

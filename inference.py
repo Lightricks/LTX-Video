@@ -389,7 +389,9 @@ def run_pipeline(
     guidance_scale: float = 3.0,
     seed: int = 171198,
     output_path: Optional[Union[str, Path]] = None,
-    bfloat16: bool = False
+    bfloat16: bool = False,
+    extend_clip: bool = False,
+    restart_first_frame: bool = False
 ) -> None:
     """
     Run the video generation pipeline and save the results.
@@ -504,19 +506,20 @@ def run_pipeline(
         if torch.cuda.is_available():
             g_pipeline = g_pipeline.to("cuda")
 
-    sample = {
-        "prompt": prompt,
-        "prompt_attention_mask": None,
-        "negative_prompt": negative_prompt,
-        "negative_prompt_attention_mask": None,
-        "media_items": media_items,
-    }
-
     if (seed==-1):
         seed=random.randrange(1, 999999999)
 
     for seed in range(seed,seed+num_images_per_prompt):
         seed_everything(seed)
+
+        sample = {
+            "prompt": prompt,
+            "prompt_attention_mask": None,
+            "negative_prompt": negative_prompt,
+            "negative_prompt_attention_mask": None,
+            "media_items": media_items,
+        }
+
         generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
 
         images = g_pipeline(
@@ -582,6 +585,18 @@ def run_pipeline(
                 with imageio.get_writer(output_filename, fps=fps) as video:
                     for frame in video_np:
                         video.append_data(frame)
+
+                first_filename = Path(str(output_filename).replace('.mp4','.first.png'))
+                last_filename = Path(str(output_filename).replace('.mp4','.last.png'))
+                imageio.imwrite(first_filename, video_np[0])
+                imageio.imwrite(last_filename, video_np[-1])
+
+                if (extend_clip):
+                    if (restart_first_frame):
+                        media_items_prepad = load_image_to_tensor_with_resize_and_crop(first_filename, height, width)
+                    else:
+                        media_items_prepad = load_image_to_tensor_with_resize_and_crop(last_filename, height, width)
+                    media_items = F.pad(media_items_prepad, padding, mode="constant", value=-1)
 
         logger.warning(f"Output {seed} saved to {output_dir}")
     print("Complete.")
