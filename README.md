@@ -49,9 +49,7 @@ The model is accessible right away via following links:
 
 ### Installation
 The codebase was tested with Python 3.10.5, CUDA version 12.2, and supports PyTorch >= 2.1.2.
-You MUST have Python >=3.10 available to support the virtual environment
 
-#### Linux
 ```bash
 git clone https://github.com/Lightricks/LTX-Video.git
 cd LTX-Video
@@ -60,17 +58,6 @@ cd LTX-Video
 python -m venv env
 source env/bin/activate
 python -m pip install -e .\[inference-script\]
-```
-
-#### Windows
-```bash
-git clone https://github.com/Lightricks/LTX-Video.git
-cd LTX-Video
-
-# create env
-py -3.10 -m venv env
-env\Scripts\activate
-python -m pip install -e ".[inference-script]"
 ```
 
 Then, download the model from [Hugging Face](https://huggingface.co/Lightricks/LTX-Video) 
