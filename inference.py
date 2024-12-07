@@ -1,10 +1,11 @@
 import argparse
 import json
-import os
+import os, sys
 import random
 from datetime import datetime
 from pathlib import Path
 from diffusers.utils import logging
+from moviepy import VideoFileClip, concatenate_videoclips
 
 from typing import Union
 from typing import Optional
@@ -25,6 +26,10 @@ from ltx_video.models.transformers.transformer3d import Transformer3DModel
 from ltx_video.pipelines.pipeline_ltx_video import LTXVideoPipeline
 from ltx_video.schedulers.rf import RectifiedFlowScheduler
 from ltx_video.utils.conditioning_method import ConditioningMethod
+
+real_esrgan_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'RealESRGAN'))
+sys.path.append(real_esrgan_path)
+import RealESRGAN.inference_realesrgan_video as realesrgan_video
 
 MAX_HEIGHT = 720
 MAX_WIDTH = 1280
@@ -344,12 +349,10 @@ def get_unique_filename(
         >>> print(filename)
         outputs/output_sample-prompt_42_512x768x121_0_v1.mp4
     """
-    print(f"get_unique_filename: override_filename: {override_filename}")
-
     if (override_filename is None):
         base_filename = f"{base}_{convert_prompt_to_filename(prompt, max_len=30)}_{seed}_{resolution[0]}x{resolution[1]}x{resolution[2]}"
     else:
-        base_filename = f"{override_filename}_{seed}"
+        base_filename = f"{override_filename}_{seed}".replace(" ","_")
     for i in range(index_range):
         filename = dir / f"{base_filename}_{i}{endswith if endswith else ''}{ext}"
         if not os.path.exists(filename):
@@ -388,6 +391,7 @@ def run_pipeline(
     negative_prompt: Optional[str] = None,
     height: int = 480,
     width: int = 704,
+    num_runs: int = 1,
     num_frames: int = 121,
     frame_rate: int = 25,
     num_inference_steps: int = 40,
@@ -398,7 +402,8 @@ def run_pipeline(
     bfloat16: bool = False,
     extend_clip: bool = False,
     restart_first_frame: bool = False,
-    override_filename: str = None
+    override_filename: str = None,
+    upscale_clip: bool = False,
 ) -> None:
     """
     Run the video generation pipeline and save the results.
@@ -519,102 +524,206 @@ def run_pipeline(
     if (seed==-1):
         seed=random.randrange(1, 999999999)
 
-    video_sequence=[]
+    seed_image_filename=None
 
-    for seed in range(seed,seed+num_images_per_prompt):
-        seed_everything(seed)
+    for run in range(0, num_runs):
+        if (run>0):
+            media_items_prepad = load_image_to_tensor_with_resize_and_crop(seed_image_filename, height, width)
+            media_items = F.pad(media_items_prepad, padding, mode="constant", value=-1)
 
-        sample = {
-            "prompt": prompt,
-            "prompt_attention_mask": None,
-            "negative_prompt": negative_prompt,
-            "negative_prompt_attention_mask": None,
-            "media_items": media_items,
-        }
+        video_sequence=[]
 
-        generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
+        for seed in range(seed,seed+num_images_per_prompt):
+            seed_everything(seed)
 
-        images = g_pipeline(
-            num_inference_steps=num_inference_steps,
-            num_images_per_prompt=1,
-            guidance_scale=guidance_scale,
-            generator=generator,
-            output_type="pt",
-            height=height_padded,
-            width=width_padded,
-            num_frames=num_frames_padded,
-            frame_rate=frame_rate,
-            **sample,
-            is_video=True,
-            vae_per_channel_normalize=True,
-            conditioning_method=(ConditioningMethod.FIRST_FRAME if media_items is not None else ConditioningMethod.UNCONDITIONAL),
-            mixed_precision=not bfloat16,
-        ).images
+            sample = {
+                "prompt": prompt,
+                "prompt_attention_mask": None,
+                "negative_prompt": negative_prompt,
+                "negative_prompt_attention_mask": None,
+                "media_items": media_items,
+            }
 
-        # Crop the padded images to the desired resolution and number of frames
-        (pad_left, pad_right, pad_top, pad_bottom) = padding
-        pad_bottom = -pad_bottom
-        pad_right = -pad_right
-        if pad_bottom == 0:
-            pad_bottom = images.shape[3]
-        if pad_right == 0:
-            pad_right = images.shape[4]
-        images = images[:, :, :num_frames, pad_top:pad_bottom, pad_left:pad_right]
+            generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
 
-        for i in range(images.shape[0]):
-            # Gathering from B, C, F, H, W to C, F, H, W and then permuting to F, H, W, C
-            video_np = images[i].permute(1, 2, 3, 0).cpu().float().numpy()
-            # Unnormalizing images to [0, 255] range
-            video_np = (video_np * 255).astype(np.uint8)
-            fps = frame_rate
-            height, width = video_np.shape[1:3]
-            # In case a single image is generated
-            if video_np.shape[0] == 1:
-                output_filename = get_unique_filename(
-                    f"image_output_{i}",
-                    ".png",
-                    prompt=prompt,
-                    seed=seed,
-                    resolution=(height, width, num_frames),
-                    dir=output_dir,
-                    override_filename=override_filename,
-                )
-                imageio.imwrite(output_filename, video_np[0])
-            else:
-                if input_image_path:
-                    base_filename = f"img_to_vid_{i}"
+            images = g_pipeline(
+                num_inference_steps=num_inference_steps,
+                num_images_per_prompt=1,
+                guidance_scale=guidance_scale,
+                generator=generator,
+                output_type="pt",
+                height=height_padded,
+                width=width_padded,
+                num_frames=num_frames_padded,
+                frame_rate=frame_rate,
+                **sample,
+                is_video=True,
+                vae_per_channel_normalize=True,
+                conditioning_method=(ConditioningMethod.FIRST_FRAME if media_items is not None else ConditioningMethod.UNCONDITIONAL),
+                mixed_precision=not bfloat16,
+            ).images
+
+            # Crop the padded images to the desired resolution and number of frames
+            (pad_left, pad_right, pad_top, pad_bottom) = padding
+            pad_bottom = -pad_bottom
+            pad_right = -pad_right
+            if pad_bottom == 0:
+                pad_bottom = images.shape[3]
+            if pad_right == 0:
+                pad_right = images.shape[4]
+            images = images[:, :, :num_frames, pad_top:pad_bottom, pad_left:pad_right]
+
+            for i in range(images.shape[0]):
+                # Gathering from B, C, F, H, W to C, F, H, W and then permuting to F, H, W, C
+                video_np = images[i].permute(1, 2, 3, 0).cpu().float().numpy()
+                # Unnormalizing images to [0, 255] range
+                video_np = (video_np * 255).astype(np.uint8)
+                fps = frame_rate
+                height, width = video_np.shape[1:3]
+                # In case a single image is generated
+                if video_np.shape[0] == 1:
+                    output_filename = get_unique_filename(
+                        f"image_output_{i}",
+                        ".png",
+                        prompt=prompt,
+                        seed=seed,
+                        resolution=(height, width, num_frames),
+                        dir=output_dir,
+                        override_filename=override_filename,
+                    )
+                    imageio.imwrite(output_filename, video_np[0])
                 else:
-                    base_filename = f"text_to_vid_{i}"
-                output_filename = get_unique_filename(
-                    base_filename,
-                    ".mp4",
-                    prompt=prompt,
-                    seed=seed,
-                    resolution=(height, width, num_frames),
-                    dir=output_dir,
-                    override_filename=override_filename,
-                )
-
-                # Write video
-                with imageio.get_writer(output_filename, fps=fps) as video:
-                    for frame in video_np:
-                        video.append_data(frame)
-
-                first_filename = Path(str(output_filename).replace('.mp4','.first.png'))
-                last_filename = Path(str(output_filename).replace('.mp4','.last.png'))
-                imageio.imwrite(first_filename, video_np[0])
-                imageio.imwrite(last_filename, video_np[-1])
-
-                if (extend_clip):
-                    video_sequence.append(output_filename)
-                    if (restart_first_frame):
-                        media_items_prepad = load_image_to_tensor_with_resize_and_crop(first_filename, height, width)
+                    if input_image_path:
+                        base_filename = f"img_to_vid_{i}"
                     else:
-                        media_items_prepad = load_image_to_tensor_with_resize_and_crop(last_filename, height, width)
-                    media_items = F.pad(media_items_prepad, padding, mode="constant", value=-1)
+                        base_filename = f"text_to_vid_{i}"
+                    output_filename = get_unique_filename(
+                        base_filename,
+                        ".mp4",
+                        prompt=prompt,
+                        seed=seed,
+                        resolution=(height, width, num_frames),
+                        dir=output_dir,
+                        override_filename=override_filename,
+                    )
 
-        logger.warning(f"Output {seed} saved to {output_dir}")
+                    # Write video
+                    with imageio.get_writer(output_filename, fps=fps) as video:
+                        for frame in video_np:
+                            video.append_data(frame)
+
+                    first_filename = Path(str(output_filename).replace('.mp4','.first.png'))
+                    last_filename = Path(str(output_filename).replace('.mp4','.last.png'))
+                    imageio.imwrite(first_filename, video_np[0])
+                    imageio.imwrite(last_filename, video_np[-1])
+
+                    if (seed_image_filename is None):
+                        seed_image_filename = first_filename
+
+                    if (extend_clip):
+                        video_sequence.append(str(output_filename))
+                        if (restart_first_frame):
+                            media_items_prepad = load_image_to_tensor_with_resize_and_crop(first_filename, height, width)
+                        else:
+                            media_items_prepad = load_image_to_tensor_with_resize_and_crop(last_filename, height, width)
+                        media_items = F.pad(media_items_prepad, padding, mode="constant", value=-1)
+
+            logger.warning(f"Output {seed} saved to {output_dir}")
+        if (video_sequence!=[]):
+            final_video=join_videos(video_sequence=video_sequence)
+            if (upscale_clip):
+                final_video=upscale_video(final_video)
+            print(f"Joined video: {final_video}")
+
     print("Complete.")
+
+def resize_and_crop_video(input_path: str, output_path: str) -> None:
+    """
+    Resizes and crops a video to maintain the aspect ratio for 1920x1080 resolution.
+    
+    Args:
+        input_path (str): Path to the input MP4 file.
+        output_path (str): Path to save the output MP4 file.
+    """
+    target_width = 1920
+    target_height = 1080
+
+    # Load the video
+    clip = VideoFileClip(input_path)
+
+    # Calculate scale factor to maintain aspect ratio
+    scale_width = target_width / clip.size[0]
+    scale_height = target_height / clip.size[1]
+    scale_factor = max(scale_width, scale_height)
+
+    # Resize the clip while maintaining aspect ratio
+    resized_clip = clip.resized(height=int(clip.size[1] * scale_factor))
+
+    # Calculate crop coordinates to center the video
+    x_center = resized_clip.size[0] / 2
+    y_center = resized_clip.size[1] / 2
+
+    cropped_clip = resized_clip.cropped(
+        x_center=x_center, 
+        y_center=y_center, 
+        width=target_width, 
+        height=target_height
+    )
+
+    # Write the output video
+    cropped_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+
+    # Close resources
+    clip.close()
+    resized_clip.close()
+    cropped_clip.close()
+
+
+def join_videos(video_sequence):
+    # Compute the output filename as per your logic
+    new_base_filename = '_'.join(video_sequence[0].split('_')[0:-1]) + os.path.splitext(video_sequence[0])[-1]
+
+    # Load each video file into a VideoFileClip object
+    clips = []
+    for vid_path in video_sequence:
+        clip = VideoFileClip(vid_path)
+        clips.append(clip)
+
+    # Concatenate all the clips into one
+    final_clip = concatenate_videoclips(clips)
+
+    # Write the output file
+    final_clip.write_videofile(new_base_filename, codec='libx264', audio_codec='aac')
+
+    # Close the clips to free resources
+    for clip in clips:
+        clip.close()
+    final_clip.close()
+
+    # Once done, remove the original files (optional)
+    for vid_path in video_sequence:
+        try:
+            os.remove(vid_path)
+        except:
+            pass
+    return new_base_filename
+
+def upscale_video(base_video):
+    bv=os.path.splitext(base_video)
+    base_path=os.path.dirname(base_video)
+    upscaled_video=bv[0]+"_4x"+bv[-1]
+    realesrgan_video.run_with_params(input=base_video,
+                                     output=base_path,
+                                     face_enhance=True,
+                                     suffix="4x"
+                                     )
+    hd_video=upscaled_video.replace("_4x","_hd")
+    resize_and_crop_video(upscaled_video, hd_video)
+    try:
+        os.remove(upscaled_video)
+    except:
+        pass
+    return hd_video
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the pipeline from the command line.")
