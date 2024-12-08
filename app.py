@@ -110,7 +110,7 @@ def gradio_interface(
                                hair_texture=hair_texture, hair_color=hair_color, object_a=object_a,
                                object_b=object_b, clothing_tone=clothing_tone, clothing_type=clothing_type,
                                shirt_color=shirt_color, shirt_type=shirt_type, accessory=accessory, broadcast_type=broadcast_type),
-        "negative_prompt": "text, logo, graphics, worst quality, deformed, distorted, inconsistent motion, blurry, jittery, distorted",
+        "negative_prompt": "cropped, letterboxed, text, logo, graphics, worst quality, deformed, distorted, inconsistent motion, blurry, jittery, distorted",
         "extend_clip": extend_clip,
         "restart_first_frame": restart_first_frame,
         "upscale_clip": upscale_clip,
@@ -137,12 +137,12 @@ options={
     'hair_length'   :   ['shaved','short','long'],
     'hair_texture'  :   ['straight', 'curly', 'wavy', 'bald'],
     'hair_color'    :   ["black", "brown", "blonde", "red", "auburn", "gray", "white", "blue", "green", "pink", "purple", "silver", "platinum", "strawberry blonde", "chestnut"],
-    'objects'      :    ["a bookshelf", "picture frames", "plants", "a lamp", "a clock", "curtains", "awards", "a vase", "artwork", "a window", "a television screen", "a computer monitor", "a couch", "a chair", "a desk", "a microphone", "a whiteboard", "books", "trophies", "decorative figurines", "a news desk", "television monitors", "digital screens", "a world map", "a weather map", "cityscape backdrop", "camera equipment", "lighting rigs", "a flag", "an American flag", "a Pride flag", "charts", "newsroom activity", "computer screens", "studio decor", "a globe"],
+    'objects'      :    ["a Christmas Tree", "Christmas decorations", "a bookshelf", "a candle", "candles", "a church altar", "a crucifix", "picture frames", "plants", "a lamp", "a clock", "curtains", "awards", "a vase", "artwork", "a window", "a television screen", "a computer monitor", "a couch", "a chair", "a desk", "a microphone", "a whiteboard", "books", "trophies", "decorative figurines", "a news desk", "television monitors", "digital screens", "a world map", "a weather map", "cityscape backdrop", "camera equipment", "lighting rigs", "a flag", "an American flag", "a Pride flag", "charts", "newsroom activity", "computer screens", "studio decor", "a globe", "a street", "a busy street", "a busy street with cars", "cars", "pedestrians", "an airport", "airplanes", "jets", "a jet"],
     'clothing_tone' :   ['dark', 'light', 'tan', 'desert camo', 'woodland camo', 'digital camo'],
     'clothing_type' :   ['suit', 'casual outfit', 'workout outfit', 'police uniform', 'firefighter uniform', 'uniform'],
     'shirt_color'   :   ["white", "black", "blue", "red", "green", "yellow", "gray", "brown", "pink", "purple", "orange", "beige", "maroon", "navy", "teal", "turquoise", "lavender", "olive", "gold", "silver"],
-    'shirt_type'    :   ["shirt", "t-shirt", "dress shirt", "polo shirt"],
-    'accessory'     :   ['tie', 'bow', 'bow tie', 'glasses', 'sunglasses', 'hat', 'ballcap', 'tophat', 'trucker hat', 'tattoos', 'lapel flag pin', 'pony tail', 'headphones', 'headset', 'microphone', 'clean face'],
+    'shirt_type'    :   ["ugly Christmas sweater", "shirt", "sweater", "hoodie", "t-shirt", "dress shirt", "polo shirt", "collared shirt"],
+    'accessory'     :   ["Santa hat", 'beard', 'moustache', 'goatee', 'sideburns', "priest's collar", 'tie', 'bow', 'bow tie', 'glasses', 'sunglasses', 'hat', 'ballcap', 'tophat', 'trucker hat', 'tattoos', 'lapel flag pin', 'pony tail', 'headphones', 'headset', 'microphone', 'clean face'],
     'broadcast_type':   ['news', 'sports', 'comedy', 'weather', 'documentary', 'awards']
 }
 
@@ -150,8 +150,8 @@ for key in options:
     options[key]=sort_custom(options[key])
 
 # Gradio interface setup
-with gr.Blocks() as app:
-    gr.Markdown("# AuRA Avatar Generation\n*from Big Blue Ceiling*")
+with gr.Blocks(title="AuRA Avatar Generator") as app:
+    gr.Markdown("# AuRA Avatar Generator\n*from Big Blue Ceiling*")
 
     with gr.Row():
         with gr.Column(scale=1):
