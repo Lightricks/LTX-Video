@@ -44,7 +44,7 @@ class Patchifier(ConfigMixin, ABC):
         grid_h = torch.arange(h, dtype=torch.float32, device=device)
         grid_w = torch.arange(w, dtype=torch.float32, device=device)
         grid_f = torch.arange(f, dtype=torch.float32, device=device)
-        grid = torch.meshgrid(grid_f, grid_h, grid_w)
+        grid = torch.meshgrid(grid_f, grid_h, grid_w, indexing=None)
         grid = torch.stack(grid, dim=0)
         grid = grid.unsqueeze(0).repeat(batch_size, 1, 1, 1, 1)
 
