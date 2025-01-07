@@ -23,8 +23,8 @@ This is the official repository for LTX-Video.
   - [Diffusers Integration](#diffusers-integration)
 - [Model User Guide](#model-user-guide)
 - [Community Contribution](#community-contribution)
-- [Training](#trining)
-- [Join Us!](#join-us)
+- [Training](#training)
+- [Join Us!](#join-us-)
 - [Acknowledgement](#acknowledgement)
 
 # Introduction
