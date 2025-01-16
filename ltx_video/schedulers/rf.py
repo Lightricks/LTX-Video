@@ -2,14 +2,24 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, Union
+import json
+import os
+from pathlib import Path
 
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from torch import Tensor
+from safetensors import safe_open
+
 
 from ltx_video.utils.torch_utils import append_dims
+
+from ltx_video.utils.diffusers_config_mapping import (
+    diffusers_and_ours_config_mapping,
+    make_hashable_key,
+)
 
 
 def simple_diffusion_resolution_dependent_timestep_shift(
@@ -196,6 +206,31 @@ class RectifiedFlowScheduler(SchedulerMixin, ConfigMixin, TimestepShifter):
         )
         self.num_inference_steps = num_inference_steps
         self.sigmas = self.timesteps
+
+    @staticmethod
+    def from_pretrained(pretrained_model_path: Union[str, os.PathLike]):
+        pretrained_model_path = Path(pretrained_model_path)
+        if pretrained_model_path.is_file():
+            comfy_single_file_state_dict = {}
+            with safe_open(pretrained_model_path, framework="pt", device="cpu") as f:
+                metadata = f.metadata()
+                for k in f.keys():
+                    comfy_single_file_state_dict[k] = f.get_tensor(k)
+            configs = json.loads(metadata["config"])
+            config = configs["scheduler"]
+            del comfy_single_file_state_dict
+
+        elif pretrained_model_path.is_dir():
+            diffusers_noise_scheduler_config_path = (
+                pretrained_model_path / "scheduler" / "scheduler_config.json"
+            )
+
+            with open(diffusers_noise_scheduler_config_path, "r") as f:
+                scheduler_config = json.load(f)
+            hashable_config = make_hashable_key(scheduler_config)
+            if hashable_config in diffusers_and_ours_config_mapping:
+                config = diffusers_and_ours_config_mapping[hashable_config]
+        return RectifiedFlowScheduler.from_config(config)
 
     def scale_model_input(
         self, sample: torch.FloatTensor, timestep: Optional[int] = None

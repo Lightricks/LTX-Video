@@ -257,11 +257,11 @@ class AutoencoderKLWrapper(ModelMixin, ConfigMixin):
         self,
         z: torch.FloatTensor,
         target_shape=None,
-        timesteps: Optional[torch.Tensor] = None,
+        timestep: Optional[torch.Tensor] = None,
     ) -> Union[DecoderOutput, torch.FloatTensor]:
         z = self.post_quant_conv(z)
-        if "timesteps" in self.decoder_params:
-            dec = self.decoder(z, target_shape=target_shape, timesteps=timesteps)
+        if "timestep" in self.decoder_params:
+            dec = self.decoder(z, target_shape=target_shape, timestep=timestep)
         else:
             dec = self.decoder(z, target_shape=target_shape)
         return dec
@@ -271,7 +271,7 @@ class AutoencoderKLWrapper(ModelMixin, ConfigMixin):
         z: torch.FloatTensor,
         return_dict: bool = True,
         target_shape=None,
-        timesteps: Optional[torch.Tensor] = None,
+        timestep: Optional[torch.Tensor] = None,
     ) -> Union[DecoderOutput, torch.FloatTensor]:
         assert target_shape is not None, "target_shape must be provided for decoding"
         if self.use_z_tiling and z.shape[2] > self.z_sample_size > 1:
@@ -304,7 +304,7 @@ class AutoencoderKLWrapper(ModelMixin, ConfigMixin):
             decoded = (
                 self._hw_tiled_decode(z, target_shape)
                 if self.use_hw_tiling
-                else self._decode(z, target_shape=target_shape, timesteps=timesteps)
+                else self._decode(z, target_shape=target_shape, timestep=timestep)
             )
 
         if not return_dict:

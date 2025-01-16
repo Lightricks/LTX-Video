@@ -3,6 +3,7 @@ import os
 from functools import partial
 from types import SimpleNamespace
 from typing import Any, Mapping, Optional, Tuple, Union, List
+from pathlib import Path
 
 import torch
 import numpy as np
@@ -11,13 +12,20 @@ from torch import nn
 from diffusers.utils import logging
 import torch.nn.functional as F
 from diffusers.models.embeddings import PixArtAlphaCombinedTimestepSizeEmbeddings
+from safetensors import safe_open
 
 
 from ltx_video.models.autoencoders.conv_nd_factory import make_conv_nd, make_linear_nd
 from ltx_video.models.autoencoders.pixel_norm import PixelNorm
 from ltx_video.models.autoencoders.vae import AutoencoderKLWrapper
 from ltx_video.models.transformers.attention import Attention
+from ltx_video.utils.diffusers_config_mapping import (
+    diffusers_and_ours_config_mapping,
+    make_hashable_key,
+    VAE_KEYS_RENAME_DICT,
+)
 
+PER_CHANNEL_STATISTICS_PREFIX = "per_channel_statistics."
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
@@ -29,34 +37,85 @@ class CausalVideoAutoencoder(AutoencoderKLWrapper):
         *args,
         **kwargs,
     ):
-        config_local_path = pretrained_model_name_or_path / "config.json"
-        config = cls.load_config(config_local_path, **kwargs)
-        video_vae = cls.from_config(config)
-        video_vae.to(kwargs["torch_dtype"])
+        pretrained_model_name_or_path = Path(pretrained_model_name_or_path)
+        if (
+            pretrained_model_name_or_path.is_dir()
+            and (pretrained_model_name_or_path / "autoencoder.pth").exists()
+        ):
+            config_local_path = pretrained_model_name_or_path / "config.json"
+            config = cls.load_config(config_local_path, **kwargs)
 
-        model_local_path = pretrained_model_name_or_path / "autoencoder.pth"
-        ckpt_state_dict = torch.load(model_local_path, map_location=torch.device("cpu"))
-        video_vae.load_state_dict(ckpt_state_dict)
+            model_local_path = pretrained_model_name_or_path / "autoencoder.pth"
+            state_dict = torch.load(model_local_path, map_location=torch.device("cpu"))
 
-        statistics_local_path = (
-            pretrained_model_name_or_path / "per_channel_statistics.json"
-        )
-        if statistics_local_path.exists():
-            with open(statistics_local_path, "r") as file:
-                data = json.load(file)
-            transposed_data = list(zip(*data["data"]))
-            data_dict = {
-                col: torch.tensor(vals)
-                for col, vals in zip(data["columns"], transposed_data)
-            }
-            video_vae.register_buffer("std_of_means", data_dict["std-of-means"])
-            video_vae.register_buffer(
-                "mean_of_means",
-                data_dict.get(
+            statistics_local_path = (
+                pretrained_model_name_or_path / "per_channel_statistics.json"
+            )
+            if statistics_local_path.exists():
+                with open(statistics_local_path, "r") as file:
+                    data = json.load(file)
+                transposed_data = list(zip(*data["data"]))
+                data_dict = {
+                    col: torch.tensor(vals)
+                    for col, vals in zip(data["columns"], transposed_data)
+                }
+                std_of_means = data_dict["std-of-means"]
+                mean_of_means = data_dict.get(
                     "mean-of-means", torch.zeros_like(data_dict["std-of-means"])
-                ),
+                )
+                state_dict[f"{PER_CHANNEL_STATISTICS_PREFIX}std-of-means"] = (
+                    std_of_means
+                )
+                state_dict[f"{PER_CHANNEL_STATISTICS_PREFIX}mean-of-means"] = (
+                    mean_of_means
+                )
+
+        elif pretrained_model_name_or_path.is_dir():
+            config_path = pretrained_model_name_or_path / "vae" / "config.json"
+            with open(config_path, "r") as f:
+                config = make_hashable_key(json.load(f))
+
+            assert config in diffusers_and_ours_config_mapping, (
+                "Provided diffusers checkpoint config for VAE is not suppported. "
+                "We only support diffusers configs found in Lightricks/LTX-Video."
             )
 
+            config = diffusers_and_ours_config_mapping[config]
+
+            state_dict_path = (
+                pretrained_model_name_or_path
+                / "vae"
+                / "diffusion_pytorch_model.safetensors"
+            )
+
+            state_dict = {}
+            with safe_open(state_dict_path, framework="pt", device="cpu") as f:
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)
+            for key in list(state_dict.keys()):
+                new_key = key
+                for replace_key, rename_key in VAE_KEYS_RENAME_DICT.items():
+                    new_key = new_key.replace(replace_key, rename_key)
+
+                state_dict[new_key] = state_dict.pop(key)
+
+        elif pretrained_model_name_or_path.is_file() and str(
+            pretrained_model_name_or_path
+        ).endswith(".safetensors"):
+            state_dict = {}
+            with safe_open(
+                pretrained_model_name_or_path, framework="pt", device="cpu"
+            ) as f:
+                metadata = f.metadata()
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)
+            configs = json.loads(metadata["config"])
+            config = configs["vae"]
+
+        video_vae = cls.from_config(config)
+        if "torch_dtype" in kwargs:
+            video_vae.to(kwargs["torch_dtype"])
+        video_vae.load_state_dict(state_dict)
         return video_vae
 
     @staticmethod
@@ -165,11 +224,16 @@ class CausalVideoAutoencoder(AutoencoderKLWrapper):
         return json.dumps(self.config.__dict__)
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
-        per_channel_statistics_prefix = "per_channel_statistics."
+        if any([key.startswith("vae.") for key in state_dict.keys()]):
+            state_dict = {
+                key.replace("vae.", ""): value
+                for key, value in state_dict.items()
+                if key.startswith("vae.")
+            }
         ckpt_state_dict = {
             key: value
             for key, value in state_dict.items()
-            if not key.startswith(per_channel_statistics_prefix)
+            if not key.startswith(PER_CHANNEL_STATISTICS_PREFIX)
         }
 
         model_keys = set(name for name, _ in self.named_parameters())
@@ -195,9 +259,9 @@ class CausalVideoAutoencoder(AutoencoderKLWrapper):
         super().load_state_dict(converted_state_dict, strict=strict)
 
         data_dict = {
-            key.removeprefix(per_channel_statistics_prefix): value
+            key.removeprefix(PER_CHANNEL_STATISTICS_PREFIX): value
             for key, value in state_dict.items()
-            if key.startswith(per_channel_statistics_prefix)
+            if key.startswith(PER_CHANNEL_STATISTICS_PREFIX)
         }
         if len(data_dict) > 0:
             self.register_buffer("std_of_means", data_dict["std-of-means"])
@@ -577,7 +641,7 @@ class Decoder(nn.Module):
         self,
         sample: torch.FloatTensor,
         target_shape,
-        timesteps: Optional[torch.Tensor] = None,
+        timestep: Optional[torch.Tensor] = None,
     ) -> torch.FloatTensor:
         r"""The forward method of the `Decoder` class."""
         assert target_shape is not None, "target_shape must be provided"
@@ -597,14 +661,14 @@ class Decoder(nn.Module):
 
         if self.timestep_conditioning:
             assert (
-                timesteps is not None
-            ), "should pass timesteps with timestep_conditioning=True"
-            scaled_timesteps = timesteps * self.timestep_scale_multiplier
+                timestep is not None
+            ), "should pass timestep with timestep_conditioning=True"
+            scaled_timestep = timestep * self.timestep_scale_multiplier
 
         for up_block in self.up_blocks:
             if self.timestep_conditioning and isinstance(up_block, UNetMidBlock3D):
                 sample = checkpoint_fn(up_block)(
-                    sample, causal=self.causal, timesteps=scaled_timesteps
+                    sample, causal=self.causal, timestep=scaled_timestep
                 )
             else:
                 sample = checkpoint_fn(up_block)(sample, causal=self.causal)
@@ -612,25 +676,25 @@ class Decoder(nn.Module):
         sample = self.conv_norm_out(sample)
 
         if self.timestep_conditioning:
-            embedded_timesteps = self.last_time_embedder(
-                timestep=scaled_timesteps.flatten(),
+            embedded_timestep = self.last_time_embedder(
+                timestep=scaled_timestep.flatten(),
                 resolution=None,
                 aspect_ratio=None,
                 batch_size=sample.shape[0],
                 hidden_dtype=sample.dtype,
             )
-            embedded_timesteps = embedded_timesteps.view(
-                batch_size, embedded_timesteps.shape[-1], 1, 1, 1
+            embedded_timestep = embedded_timestep.view(
+                batch_size, embedded_timestep.shape[-1], 1, 1, 1
             )
             ada_values = self.last_scale_shift_table[
                 None, ..., None, None, None
-            ] + embedded_timesteps.reshape(
+            ] + embedded_timestep.reshape(
                 batch_size,
                 2,
                 -1,
-                embedded_timesteps.shape[-3],
-                embedded_timesteps.shape[-2],
-                embedded_timesteps.shape[-1],
+                embedded_timestep.shape[-3],
+                embedded_timestep.shape[-2],
+                embedded_timestep.shape[-1],
             )
             shift, scale = ada_values.unbind(dim=1)
             sample = sample * (1 + scale) + shift
@@ -737,16 +801,16 @@ class UNetMidBlock3D(nn.Module):
         self,
         hidden_states: torch.FloatTensor,
         causal: bool = True,
-        timesteps: Optional[torch.Tensor] = None,
+        timestep: Optional[torch.Tensor] = None,
     ) -> torch.FloatTensor:
         timestep_embed = None
         if self.timestep_conditioning:
             assert (
-                timesteps is not None
-            ), "should pass timesteps with timestep_conditioning=True"
+                timestep is not None
+            ), "should pass timestep with timestep_conditioning=True"
             batch_size = hidden_states.shape[0]
             timestep_embed = self.time_embedder(
-                timestep=timesteps.flatten(),
+                timestep=timestep.flatten(),
                 resolution=None,
                 aspect_ratio=None,
                 batch_size=batch_size,
@@ -759,7 +823,7 @@ class UNetMidBlock3D(nn.Module):
         if self.attention_blocks:
             for resnet, attention in zip(self.res_blocks, self.attention_blocks):
                 hidden_states = resnet(
-                    hidden_states, causal=causal, timesteps=timestep_embed
+                    hidden_states, causal=causal, timestep=timestep_embed
                 )
 
                 # Reshape the hidden states to be (batch_size, frames * height * width, channel)
@@ -806,7 +870,7 @@ class UNetMidBlock3D(nn.Module):
         else:
             for resnet in self.res_blocks:
                 hidden_states = resnet(
-                    hidden_states, causal=causal, timesteps=timestep_embed
+                    hidden_states, causal=causal, timestep=timestep_embed
                 )
 
         return hidden_states
@@ -991,7 +1055,7 @@ class ResnetBlock3D(nn.Module):
         self,
         input_tensor: torch.FloatTensor,
         causal: bool = True,
-        timesteps: Optional[torch.Tensor] = None,
+        timestep: Optional[torch.Tensor] = None,
     ) -> torch.FloatTensor:
         hidden_states = input_tensor
         batch_size = hidden_states.shape[0]
@@ -999,17 +1063,17 @@ class ResnetBlock3D(nn.Module):
         hidden_states = self.norm1(hidden_states)
         if self.timestep_conditioning:
             assert (
-                timesteps is not None
-            ), "should pass timesteps with timestep_conditioning=True"
+                timestep is not None
+            ), "should pass timestep with timestep_conditioning=True"
             ada_values = self.scale_shift_table[
                 None, ..., None, None, None
-            ] + timesteps.reshape(
+            ] + timestep.reshape(
                 batch_size,
                 4,
                 -1,
-                timesteps.shape[-3],
-                timesteps.shape[-2],
-                timesteps.shape[-1],
+                timestep.shape[-3],
+                timestep.shape[-2],
+                timestep.shape[-1],
             )
             shift1, scale1, shift2, scale2 = ada_values.unbind(dim=1)
 
@@ -1164,9 +1228,9 @@ def demo_video_autoencoder_forward_backward():
     print(f"input shape={input_videos.shape}")
     print(f"latent shape={latent.shape}")
 
-    timesteps = torch.ones(input_videos.shape[0]) * 0.1
+    timestep = torch.ones(input_videos.shape[0]) * 0.1
     reconstructed_videos = video_autoencoder.decode(
-        latent, target_shape=input_videos.shape, timesteps=timesteps
+        latent, target_shape=input_videos.shape, timestep=timestep
     ).sample
 
     print(f"reconstructed shape={reconstructed_videos.shape}")
@@ -1175,7 +1239,7 @@ def demo_video_autoencoder_forward_backward():
     input_image = input_videos[:, :, :1, :, :]
     image_latent = video_autoencoder.encode(input_image).latent_dist.mode()
     _ = video_autoencoder.decode(
-        image_latent, target_shape=image_latent.shape, timesteps=timesteps
+        image_latent, target_shape=image_latent.shape, timestep=timestep
     ).sample
 
     # first_frame_latent = latent[:, :, :1, :, :]
