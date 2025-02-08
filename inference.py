@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 import random
 from datetime import datetime
@@ -8,7 +7,6 @@ from diffusers.utils import logging
 
 import imageio
 import numpy as np
-import safetensors.torch
 import torch
 import torch.nn.functional as F
 from PIL import Image
@@ -22,42 +20,18 @@ from ltx_video.models.transformers.transformer3d import Transformer3DModel
 from ltx_video.pipelines.pipeline_ltx_video import LTXVideoPipeline
 from ltx_video.schedulers.rf import RectifiedFlowScheduler
 from ltx_video.utils.conditioning_method import ConditioningMethod
-
+from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
 
 MAX_HEIGHT = 720
 MAX_WIDTH = 1280
 MAX_NUM_FRAMES = 257
 
 
-def load_vae(vae_dir):
-    vae_ckpt_path = vae_dir / "vae_diffusion_pytorch_model.safetensors"
-    vae_config_path = vae_dir / "config.json"
-    with open(vae_config_path, "r") as f:
-        vae_config = json.load(f)
-    vae = CausalVideoAutoencoder.from_config(vae_config)
-    vae_state_dict = safetensors.torch.load_file(vae_ckpt_path)
-    vae.load_state_dict(vae_state_dict)
+def get_total_gpu_memory():
     if torch.cuda.is_available():
-        vae = vae.cuda()
-    return vae.to(torch.bfloat16)
-
-
-def load_unet(unet_dir):
-    unet_ckpt_path = unet_dir / "unet_diffusion_pytorch_model.safetensors"
-    unet_config_path = unet_dir / "config.json"
-    transformer_config = Transformer3DModel.load_config(unet_config_path)
-    transformer = Transformer3DModel.from_config(transformer_config)
-    unet_state_dict = safetensors.torch.load_file(unet_ckpt_path)
-    transformer.load_state_dict(unet_state_dict, strict=True)
-    if torch.cuda.is_available():
-        transformer = transformer.cuda()
-    return transformer
-
-
-def load_scheduler(scheduler_dir):
-    scheduler_config_path = scheduler_dir / "scheduler_config.json"
-    scheduler_config = RectifiedFlowScheduler.load_config(scheduler_config_path)
-    return RectifiedFlowScheduler.from_config(scheduler_config)
+        total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        return total_memory
+    return None
 
 
 def load_image_to_tensor_with_resize_and_crop(
@@ -168,10 +142,10 @@ def main():
 
     # Directories
     parser.add_argument(
-        "--ckpt_dir",
+        "--ckpt_path",
         type=str,
         required=True,
-        help="Path to the directory containing unet, vae, and scheduler subdirectories",
+        help="Path to a safetensors file that contains all model parts.",
     )
     parser.add_argument(
         "--input_video_path",
@@ -206,6 +180,36 @@ def main():
         help="Guidance scale for the pipeline",
     )
     parser.add_argument(
+        "--stg_scale",
+        type=float,
+        default=1,
+        help="Spatiotemporal guidance scale for the pipeline. 0 to disable STG.",
+    )
+    parser.add_argument(
+        "--stg_rescale",
+        type=float,
+        default=0.7,
+        help="Spatiotemporal guidance rescaling scale for the pipeline. 1 to disable rescale.",
+    )
+    parser.add_argument(
+        "--stg_mode",
+        type=str,
+        default="stg_a",
+        help="Spatiotemporal guidance mode for the pipeline. Can be either stg_a or stg_r.",
+    )
+    parser.add_argument(
+        "--stg_skip_layers",
+        type=str,
+        default="19",
+        help="Attention layers to skip for spatiotemporal guidance. Comma separated list of integers.",
+    )
+    parser.add_argument(
+        "--image_cond_noise_scale",
+        type=float,
+        default=0.15,
+        help="Amount of noise to add to the conditioned image",
+    )
+    parser.add_argument(
         "--height",
         type=int,
         default=480,
@@ -228,9 +232,24 @@ def main():
     )
 
     parser.add_argument(
-        "--bfloat16",
-        action="store_true",
-        help="Denoise in bfloat16",
+        "--precision",
+        choices=["bfloat16", "mixed_precision"],
+        default="bfloat16",
+        help="Sets the precision for the transformer and tokenizer. Default is bfloat16. If 'mixed_precision' is enabled, it moves to mixed-precision.",
+    )
+
+    # VAE noise augmentation
+    parser.add_argument(
+        "--decode_timestep",
+        type=float,
+        default=0.05,
+        help="Timestep for decoding noise",
+    )
+    parser.add_argument(
+        "--decode_noise_scale",
+        type=float,
+        default=0.025,
+        help="Noise level for decoding noise",
     )
 
     # Prompts
@@ -246,6 +265,12 @@ def main():
         help="Negative prompt for undesired features",
     )
 
+    parser.add_argument(
+        "--offload_to_cpu",
+        action="store_true",
+        help="Offloading unnecessary computations to CPU.",
+    )
+
     logger = logging.get_logger(__name__)
 
     args = parser.parse_args()
@@ -253,6 +278,8 @@ def main():
     logger.warning(f"Running generation with arguments: {args}")
 
     seed_everething(args.seed)
+
+    offload_to_cpu = False if not args.offload_to_cpu else get_total_gpu_memory() < 30
 
     output_dir = (
         Path(args.output_path)
@@ -296,32 +323,40 @@ def main():
     else:
         media_items = None
 
-    # Paths for the separate mode directories
-    ckpt_dir = Path(args.ckpt_dir)
-    unet_dir = ckpt_dir / "unet"
-    vae_dir = ckpt_dir / "vae"
-    scheduler_dir = ckpt_dir / "scheduler"
+    ckpt_path = Path(args.ckpt_path)
+    vae = CausalVideoAutoencoder.from_pretrained(ckpt_path)
+    transformer = Transformer3DModel.from_pretrained(ckpt_path)
+    scheduler = RectifiedFlowScheduler.from_pretrained(ckpt_path)
 
-    # Load models
-    vae = load_vae(vae_dir)
-    unet = load_unet(unet_dir)
-    scheduler = load_scheduler(scheduler_dir)
-    patchifier = SymmetricPatchifier(patch_size=1)
     text_encoder = T5EncoderModel.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="text_encoder"
     )
-    if torch.cuda.is_available():
-        text_encoder = text_encoder.to("cuda")
+    patchifier = SymmetricPatchifier(patch_size=1)
     tokenizer = T5Tokenizer.from_pretrained(
         "PixArt-alpha/PixArt-XL-2-1024-MS", subfolder="tokenizer"
     )
 
-    if args.bfloat16 and unet.dtype != torch.bfloat16:
-        unet = unet.to(torch.bfloat16)
+    if torch.cuda.is_available():
+        transformer = transformer.cuda()
+        vae = vae.cuda()
+        text_encoder = text_encoder.cuda()
+
+    vae = vae.to(torch.bfloat16)
+    if args.precision == "bfloat16" and transformer.dtype != torch.bfloat16:
+        transformer = transformer.to(torch.bfloat16)
+    text_encoder = text_encoder.to(torch.bfloat16)
+
+    # Set spatiotemporal guidance
+    skip_block_list = [int(x.strip()) for x in args.stg_skip_layers.split(",")]
+    skip_layer_strategy = (
+        SkipLayerStrategy.Attention
+        if args.stg_mode.lower() == "stg_a"
+        else SkipLayerStrategy.Residual
+    )
 
     # Use submodels for the pipeline
     submodel_dict = {
-        "transformer": unet,
+        "transformer": transformer,
         "patchifier": patchifier,
         "text_encoder": text_encoder,
         "tokenizer": tokenizer,
@@ -350,6 +385,11 @@ def main():
         num_inference_steps=args.num_inference_steps,
         num_images_per_prompt=args.num_images_per_prompt,
         guidance_scale=args.guidance_scale,
+        skip_layer_strategy=skip_layer_strategy,
+        skip_block_list=skip_block_list,
+        stg_scale=args.stg_scale,
+        do_rescaling=args.stg_rescale != 1,
+        rescaling_scale=args.stg_rescale,
         generator=generator,
         output_type="pt",
         callback_on_step_end=None,
@@ -365,7 +405,11 @@ def main():
             if media_items is not None
             else ConditioningMethod.UNCONDITIONAL
         ),
-        mixed_precision=not args.bfloat16,
+        image_cond_noise_scale=args.image_cond_noise_scale,
+        decode_timestep=args.decode_timestep,
+        decode_noise_scale=args.decode_noise_scale,
+        mixed_precision=(args.precision == "mixed_precision"),
+        offload_to_cpu=offload_to_cpu,
     ).images
 
     # Crop the padded images to the desired resolution and number of frames

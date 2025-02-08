@@ -96,6 +96,7 @@ def vae_decode(
     is_video: bool = True,
     split_size: int = 1,
     vae_per_channel_normalize=False,
+    timestep=None,
 ) -> Tensor:
     is_video_shaped = latents.dim() == 5
     batch_size = latents.shape[0]
@@ -111,12 +112,16 @@ def vae_decode(
             )
         encode_bs = len(latents) // split_size
         image_batch = [
-            _run_decoder(latent_batch, vae, is_video, vae_per_channel_normalize)
+            _run_decoder(
+                latent_batch, vae, is_video, vae_per_channel_normalize, timestep
+            )
             for latent_batch in latents.split(encode_bs)
         ]
         images = torch.cat(image_batch, dim=0)
     else:
-        images = _run_decoder(latents, vae, is_video, vae_per_channel_normalize)
+        images = _run_decoder(
+            latents, vae, is_video, vae_per_channel_normalize, timestep
+        )
 
     if is_video_shaped and not isinstance(
         vae, (VideoAutoencoder, CausalVideoAutoencoder)
@@ -126,12 +131,19 @@ def vae_decode(
 
 
 def _run_decoder(
-    latents: Tensor, vae: AutoencoderKL, is_video: bool, vae_per_channel_normalize=False
+    latents: Tensor,
+    vae: AutoencoderKL,
+    is_video: bool,
+    vae_per_channel_normalize=False,
+    timestep=None,
 ) -> Tensor:
     if isinstance(vae, (VideoAutoencoder, CausalVideoAutoencoder)):
         *_, fl, hl, wl = latents.shape
         temporal_scale, spatial_scale, _ = get_vae_size_scale_factor(vae)
         latents = latents.to(vae.dtype)
+        vae_decode_kwargs = {}
+        if timestep is not None:
+            vae_decode_kwargs["timestep"] = timestep
         image = vae.decode(
             un_normalize_latents(latents, vae, vae_per_channel_normalize),
             return_dict=False,
@@ -142,6 +154,7 @@ def _run_decoder(
                 hl * spatial_scale,
                 wl * spatial_scale,
             ),
+            **vae_decode_kwargs,
         )[0]
     else:
         image = vae.decode(

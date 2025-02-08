@@ -20,6 +20,8 @@ from diffusers.utils.torch_utils import maybe_allow_in_graph
 from einops import rearrange
 from torch import nn
 
+from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
+
 try:
     from torch_xla.experimental.custom_kernel import flash_attention
 except ImportError:
@@ -204,6 +206,8 @@ class BasicTransformerBlock(nn.Module):
         cross_attention_kwargs: Dict[str, Any] = None,
         class_labels: Optional[torch.LongTensor] = None,
         added_cond_kwargs: Optional[Dict[str, torch.Tensor]] = None,
+        skip_layer_mask: Optional[torch.Tensor] = None,
+        skip_layer_strategy: Optional[SkipLayerStrategy] = None,
     ) -> torch.FloatTensor:
         if cross_attention_kwargs is not None:
             if cross_attention_kwargs.get("scale", None) is not None:
@@ -253,6 +257,8 @@ class BasicTransformerBlock(nn.Module):
                 encoder_hidden_states if self.only_cross_attention else None
             ),
             attention_mask=attention_mask,
+            skip_layer_mask=skip_layer_mask,
+            skip_layer_strategy=skip_layer_strategy,
             **cross_attention_kwargs,
         )
         if gate_msa is not None:
@@ -647,6 +653,8 @@ class Attention(nn.Module):
         freqs_cis: Optional[Tuple[torch.FloatTensor, torch.FloatTensor]] = None,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.FloatTensor] = None,
+        skip_layer_mask: Optional[torch.Tensor] = None,
+        skip_layer_strategy: Optional[SkipLayerStrategy] = None,
         **cross_attention_kwargs,
     ) -> torch.Tensor:
         r"""
@@ -659,6 +667,10 @@ class Attention(nn.Module):
                 The hidden states of the encoder.
             attention_mask (`torch.Tensor`, *optional*):
                 The attention mask to use. If `None`, no mask is applied.
+            skip_layer_mask (`torch.Tensor`, *optional*):
+                The skip layer mask to use. If `None`, no mask is applied.
+            skip_layer_strategy (`SkipLayerStrategy`, *optional*, defaults to `None`):
+                Controls which layers to skip for spatiotemporal guidance.
             **cross_attention_kwargs:
                 Additional keyword arguments to pass along to the cross attention.
 
@@ -690,6 +702,8 @@ class Attention(nn.Module):
             freqs_cis=freqs_cis,
             encoder_hidden_states=encoder_hidden_states,
             attention_mask=attention_mask,
+            skip_layer_mask=skip_layer_mask,
+            skip_layer_strategy=skip_layer_strategy,
             **cross_attention_kwargs,
         )
 
@@ -924,6 +938,8 @@ class AttnProcessor2_0:
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         temb: Optional[torch.FloatTensor] = None,
+        skip_layer_mask: Optional[torch.FloatTensor] = None,
+        skip_layer_strategy: Optional[SkipLayerStrategy] = None,
         *args,
         **kwargs,
     ) -> torch.FloatTensor:
@@ -948,6 +964,9 @@ class AttnProcessor2_0:
             if encoder_hidden_states is None
             else encoder_hidden_states.shape
         )
+
+        if skip_layer_mask is not None:
+            skip_layer_mask = skip_layer_mask.reshape(batch_size, 1, 1)
 
         if (attention_mask is not None) and (not attn.use_tpu_flash_attention):
             attention_mask = attn.prepare_attention_mask(
@@ -1015,7 +1034,7 @@ class AttnProcessor2_0:
             ), f"ERROR: KEY SHAPE must be divisible by 128 (TPU limitation) [{key.shape[2]}]"
 
             # run the TPU kernel implemented in jax with pallas
-            hidden_states = flash_attention(
+            hidden_states_a = flash_attention(
                 q=query,
                 k=key,
                 v=value,
@@ -1024,7 +1043,7 @@ class AttnProcessor2_0:
                 sm_scale=attn.scale,
             )
         else:
-            hidden_states = F.scaled_dot_product_attention(
+            hidden_states_a = F.scaled_dot_product_attention(
                 query,
                 key,
                 value,
@@ -1033,10 +1052,20 @@ class AttnProcessor2_0:
                 is_causal=False,
             )
 
-        hidden_states = hidden_states.transpose(1, 2).reshape(
+        hidden_states_a = hidden_states_a.transpose(1, 2).reshape(
             batch_size, -1, attn.heads * head_dim
         )
-        hidden_states = hidden_states.to(query.dtype)
+        hidden_states_a = hidden_states_a.to(query.dtype)
+
+        if (
+            skip_layer_mask is not None
+            and skip_layer_strategy == SkipLayerStrategy.Attention
+        ):
+            hidden_states = hidden_states_a * skip_layer_mask + hidden_states * (
+                1.0 - skip_layer_mask
+            )
+        else:
+            hidden_states = hidden_states_a
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states)
@@ -1047,9 +1076,20 @@ class AttnProcessor2_0:
             hidden_states = hidden_states.transpose(-1, -2).reshape(
                 batch_size, channel, height, width
             )
+            if (
+                skip_layer_mask is not None
+                and skip_layer_strategy == SkipLayerStrategy.Residual
+            ):
+                skip_layer_mask = skip_layer_mask.reshape(batch_size, 1, 1, 1)
 
         if attn.residual_connection:
-            hidden_states = hidden_states + residual
+            if (
+                skip_layer_mask is not None
+                and skip_layer_strategy == SkipLayerStrategy.Residual
+            ):
+                hidden_states = hidden_states + residual * skip_layer_mask
+            else:
+                hidden_states = hidden_states + residual
 
         hidden_states = hidden_states / attn.rescale_output_factor
 

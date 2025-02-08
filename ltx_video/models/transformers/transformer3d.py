@@ -1,7 +1,11 @@
 # Adapted from: https://github.com/huggingface/diffusers/blob/v0.26.3/src/diffusers/models/transformers/transformer_2d.py
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, Union
+import os
+import json
+import glob
+from pathlib import Path
 
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
@@ -11,9 +15,19 @@ from diffusers.models.normalization import AdaLayerNormSingle
 from diffusers.utils import BaseOutput, is_torch_version
 from diffusers.utils import logging
 from torch import nn
+from safetensors import safe_open
+
 
 from ltx_video.models.transformers.attention import BasicTransformerBlock
 from ltx_video.models.transformers.embeddings import get_3d_sincos_pos_embed
+from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
+
+from ltx_video.utils.diffusers_config_mapping import (
+    diffusers_and_ours_config_mapping,
+    make_hashable_key,
+    TRANSFORMER_KEYS_RENAME_DICT,
+)
+
 
 logger = logging.get_logger(__name__)
 
@@ -166,6 +180,21 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         for block in self.transformer_blocks:
             block.set_use_tpu_flash_attention()
 
+    def create_skip_layer_mask(
+        self,
+        skip_block_list: List[int],
+        batch_size: int,
+        num_conds: int,
+        ptb_index: int,
+    ):
+        num_layers = len(self.transformer_blocks)
+        mask = torch.ones(
+            (num_layers, batch_size * num_conds), device=self.device, dtype=self.dtype
+        )
+        for block_idx in skip_block_list:
+            mask[block_idx, ptb_index::num_conds] = 0
+        return mask
+
     def initialize(self, embedding_std: float, mode: Literal["ltx_video", "legacy"]):
         def _basic_init(module):
             if isinstance(module, nn.Linear):
@@ -305,6 +334,75 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
             sin_freq = torch.cat([sin_padding, sin_freq], dim=-1)
         return cos_freq.to(self.dtype), sin_freq.to(self.dtype)
 
+    def load_state_dict(
+        self,
+        state_dict: Dict,
+        *args,
+        **kwargs,
+    ):
+        if any([key.startswith("model.diffusion_model.") for key in state_dict.keys()]):
+            state_dict = {
+                key.replace("model.diffusion_model.", ""): value
+                for key, value in state_dict.items()
+                if key.startswith("model.diffusion_model.")
+            }
+        super().load_state_dict(state_dict, **kwargs)
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_path: Optional[Union[str, os.PathLike]],
+        *args,
+        **kwargs,
+    ):
+        pretrained_model_path = Path(pretrained_model_path)
+        if pretrained_model_path.is_dir():
+            config_path = pretrained_model_path / "transformer" / "config.json"
+            with open(config_path, "r") as f:
+                config = make_hashable_key(json.load(f))
+
+            assert config in diffusers_and_ours_config_mapping, (
+                "Provided diffusers checkpoint config for transformer is not suppported. "
+                "We only support diffusers configs found in Lightricks/LTX-Video."
+            )
+
+            config = diffusers_and_ours_config_mapping[config]
+            state_dict = {}
+            ckpt_paths = (
+                pretrained_model_path
+                / "transformer"
+                / "diffusion_pytorch_model*.safetensors"
+            )
+            dict_list = glob.glob(str(ckpt_paths))
+            for dict_path in dict_list:
+                part_dict = {}
+                with safe_open(dict_path, framework="pt", device="cpu") as f:
+                    for k in f.keys():
+                        part_dict[k] = f.get_tensor(k)
+                state_dict.update(part_dict)
+
+            for key in list(state_dict.keys()):
+                new_key = key
+                for replace_key, rename_key in TRANSFORMER_KEYS_RENAME_DICT.items():
+                    new_key = new_key.replace(replace_key, rename_key)
+                state_dict[new_key] = state_dict.pop(key)
+
+            transformer = cls.from_config(config)
+            transformer.load_state_dict(state_dict, strict=True)
+        elif pretrained_model_path.is_file() and str(pretrained_model_path).endswith(
+            ".safetensors"
+        ):
+            comfy_single_file_state_dict = {}
+            with safe_open(pretrained_model_path, framework="pt", device="cpu") as f:
+                metadata = f.metadata()
+                for k in f.keys():
+                    comfy_single_file_state_dict[k] = f.get_tensor(k)
+            configs = json.loads(metadata["config"])
+            transformer_config = configs["transformer"]
+            transformer = Transformer3DModel.from_config(transformer_config)
+            transformer.load_state_dict(comfy_single_file_state_dict)
+        return transformer
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -315,6 +413,8 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         cross_attention_kwargs: Dict[str, Any] = None,
         attention_mask: Optional[torch.Tensor] = None,
         encoder_attention_mask: Optional[torch.Tensor] = None,
+        skip_layer_mask: Optional[torch.Tensor] = None,
+        skip_layer_strategy: Optional[SkipLayerStrategy] = None,
         return_dict: bool = True,
     ):
         """
@@ -348,6 +448,11 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
 
                 If `ndim == 2`: will be interpreted as a mask, then converted into a bias consistent with the format
                 above. This bias will be added to the cross-attention scores.
+            skip_layer_mask ( `torch.Tensor`, *optional*):
+                A mask of shape `(num_layers, batch)` that indicates which layers to skip. `0` at position
+                `layer, batch_idx` indicates that the layer should be skipped for the corresponding batch index.
+            skip_layer_strategy ( `SkipLayerStrategy`, *optional*, defaults to `None`):
+                Controls which layers are skipped when calculating a perturbed latent for spatiotemporal guidance.
             return_dict (`bool`, *optional*, defaults to `True`):
                 Whether or not to return a [`~models.unets.unet_2d_condition.UNet2DConditionOutput`] instead of a plain
                 tuple.
@@ -413,6 +518,11 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
             batch_size, -1, embedded_timestep.shape[-1]
         )
 
+        if skip_layer_mask is None:
+            skip_layer_mask = torch.ones(
+                len(self.transformer_blocks), batch_size, device=hidden_states.device
+            )
+
         # 2. Blocks
         if self.caption_projection is not None:
             batch_size = hidden_states.shape[0]
@@ -421,7 +531,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                 batch_size, -1, hidden_states.shape[-1]
             )
 
-        for block in self.transformer_blocks:
+        for block_idx, block in enumerate(self.transformer_blocks):
             if self.training and self.gradient_checkpointing:
 
                 def create_custom_forward(module, return_dict=None):
@@ -446,6 +556,8 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                     timestep,
                     cross_attention_kwargs,
                     class_labels,
+                    skip_layer_mask[block_idx],
+                    skip_layer_strategy,
                     **ckpt_kwargs,
                 )
             else:
@@ -458,6 +570,8 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                     timestep=timestep,
                     cross_attention_kwargs=cross_attention_kwargs,
                     class_labels=class_labels,
+                    skip_layer_mask=skip_layer_mask[block_idx],
+                    skip_layer_strategy=skip_layer_strategy,
                 )
 
         # 3. Output
