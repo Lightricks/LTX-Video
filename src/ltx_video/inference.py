@@ -59,6 +59,7 @@ class Defaults:
     conditioning_media_paths: Optional[List[str]] = None
     conditioning_strengths: Optional[List[float]] = None
     conditioning_start_frames: Optional[List[int]] = None
+    models_dir: Optional[str] = "MODEL_DIR"
 
 
 MAX_HEIGHT = 720
@@ -442,6 +443,7 @@ def infer(
     conditioning_strengths: Optional[List[float]] = Defaults.conditioning_strengths,
     conditioning_start_frames: Optional[List[int]] = Defaults.conditioning_start_frames,
     device: Optional[str] = Defaults.device,
+    models_dir: Optional[str] = Defaults.models_dir,
     **kwargs,
 ):
     # check if pipeline_config is a file
@@ -449,8 +451,6 @@ def infer(
         raise ValueError(f"Pipeline config file {pipeline_config} does not exist")
     with open(pipeline_config, "r") as f:
         pipeline_config = yaml.safe_load(f)
-
-    models_dir = "MODEL_DIR"
 
     ltxv_model_name_or_path = pipeline_config["checkpoint_path"]
     if not os.path.isfile(ltxv_model_name_or_path):
