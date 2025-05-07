@@ -136,7 +136,7 @@ cd LTX-Video
 # create env
 python -m venv env
 source env/bin/activate
-python -m pip install -e .\[inference-script\]
+python -m pip install -e .
 ```
 
 ### Inference
