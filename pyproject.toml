@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -37,4 +37,4 @@ test = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["ltx_video*"]
+where = ["src"]
