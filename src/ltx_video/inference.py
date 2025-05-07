@@ -37,6 +37,8 @@ from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
 from ltx_video.models.autoencoders.latent_upsampler import LatentUpsampler
 from dataclasses import dataclass
 
+CONFIG_PATH = Path(__file__).parent / "configs"
+
 
 @dataclass
 class Defaults:
@@ -50,7 +52,7 @@ class Defaults:
     num_frames: int = 121
     frame_rate: int = 30
     device: Optional[str] = None
-    pipeline_config: str = "configs/ltxv-13b-0.9.7-dev.yaml"
+    pipeline_config: str = str(CONFIG_PATH / "ltxv-13b-0.9.7-dev.yaml")
     offload_to_cpu: bool = False
     input_media_path: Optional[str] = None
     strength: Optional[float] = 1.0
