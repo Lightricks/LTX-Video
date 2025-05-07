@@ -35,6 +35,29 @@ from ltx_video.pipelines.pipeline_ltx_video import (
 from ltx_video.schedulers.rf import RectifiedFlowScheduler
 from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
 from ltx_video.models.autoencoders.latent_upsampler import LatentUpsampler
+from dataclasses import dataclass
+
+
+@dataclass
+class Defaults:
+    output_path: Optional[str] = None
+    seed: int = 171198
+    num_images_per_prompt: int = 1
+    image_cond_noise_scale: float = 0.15
+    negative_prompt: str = "worst quality, inconsistent motion, blurry, jittery, distorted"
+    height: Optional[int] = 704
+    width: Optional[int] = 1216
+    num_frames: int = 121
+    frame_rate: int = 30
+    device: Optional[str] = None
+    pipeline_config: str = "configs/ltxv-13b-0.9.7-dev.yaml"
+    offload_to_cpu: bool = False
+    input_media_path: Optional[str] = None
+    strength: Optional[float] = 1.0
+    conditioning_media_paths: Optional[List[str]] = None
+    conditioning_strengths: Optional[List[float]] = None
+    conditioning_start_frames: Optional[List[int]] = None
+
 
 MAX_HEIGHT = 720
 MAX_WIDTH = 1280
@@ -188,54 +211,57 @@ def main():
     parser.add_argument(
         "--output_path",
         type=str,
-        default=None,
+        default=Defaults.output_path,
         help="Path to the folder to save output video, if None will save in outputs/ directory.",
     )
-    parser.add_argument("--seed", type=int, default="171198")
+    parser.add_argument("--seed", type=int, default=Defaults.seed)
 
     # Pipeline parameters
     parser.add_argument(
         "--num_images_per_prompt",
         type=int,
-        default=1,
+        default=Defaults.num_images_per_prompt,
         help="Number of images per prompt",
     )
     parser.add_argument(
         "--image_cond_noise_scale",
         type=float,
-        default=0.15,
+        default=Defaults.image_cond_noise_scale,
         help="Amount of noise to add to the conditioned image",
     )
     parser.add_argument(
         "--height",
         type=int,
-        default=704,
+        default=Defaults.height,
         help="Height of the output video frames. Optional if an input image provided.",
     )
     parser.add_argument(
         "--width",
         type=int,
-        default=1216,
+        default=Defaults.width,
         help="Width of the output video frames. If None will infer from input image.",
     )
     parser.add_argument(
         "--num_frames",
         type=int,
-        default=121,
+        default=Defaults.num_frames,
         help="Number of frames to generate in the output video",
     )
     parser.add_argument(
-        "--frame_rate", type=int, default=30, help="Frame rate for the output video"
+        "--frame_rate",
+        type=int,
+        default=Defaults.frame_rate,
+        help="Frame rate for the output video",
     )
     parser.add_argument(
         "--device",
-        default=None,
+        default=Defaults.device,
         help="Device to run inference on. If not specified, will automatically detect and use CUDA or MPS if available, else CPU.",
     )
     parser.add_argument(
         "--pipeline_config",
         type=str,
-        default="configs/ltxv-13b-0.9.7-dev.yaml",
+        default=Defaults.pipeline_config,
         help="The path to the config file for the pipeline, which contains the parameters for the pipeline",
     )
 
@@ -243,12 +269,13 @@ def main():
     parser.add_argument(
         "--prompt",
         type=str,
+        required=True,
         help="Text prompt to guide generation",
     )
     parser.add_argument(
         "--negative_prompt",
         type=str,
-        default="worst quality, inconsistent motion, blurry, jittery, distorted",
+        default=Defaults.negative_prompt,
         help="Negative prompt for undesired features",
     )
 
@@ -262,14 +289,14 @@ def main():
     parser.add_argument(
         "--input_media_path",
         type=str,
-        default=None,
+        default=Defaults.input_media_path,
         help="Path to the input video (or imaage) to be modified using the video-to-video pipeline",
     )
 
     parser.add_argument(
         "--strength",
         type=float,
-        default=1.0,
+        default=Defaults.strength,
         help="Editing strength (noising level) for video-to-video pipeline.",
     )
 
@@ -395,23 +422,24 @@ def create_latent_upsampler(latent_upsampler_model_path: str, device: str):
 
 
 def infer(
-    output_path: Optional[str],
-    seed: int,
-    pipeline_config: str,
-    image_cond_noise_scale: float,
-    height: Optional[int],
-    width: Optional[int],
-    num_frames: int,
-    frame_rate: int,
+    *,
     prompt: str,
-    negative_prompt: str,
-    offload_to_cpu: bool,
-    input_media_path: Optional[str] = None,
-    strength: Optional[float] = 1.0,
-    conditioning_media_paths: Optional[List[str]] = None,
-    conditioning_strengths: Optional[List[float]] = None,
-    conditioning_start_frames: Optional[List[int]] = None,
-    device: Optional[str] = None,
+    output_path: Optional[str] = Defaults.output_path,
+    seed: int = Defaults.seed,
+    pipeline_config: str = Defaults.pipeline_config,
+    image_cond_noise_scale: float = Defaults.image_cond_noise_scale,
+    height: Optional[int] = Defaults.height,
+    width: Optional[int] = Defaults.width,
+    num_frames: int = Defaults.num_frames,
+    frame_rate: int = Defaults.frame_rate,
+    negative_prompt: str = Defaults.negative_prompt,
+    offload_to_cpu: bool = Defaults.offload_to_cpu,
+    input_media_path: Optional[str] = Defaults.input_media_path,
+    strength: Optional[float] = Defaults.strength,
+    conditioning_media_paths: Optional[List[str]] = Defaults.conditioning_media_paths,
+    conditioning_strengths: Optional[List[float]] = Defaults.conditioning_strengths,
+    conditioning_start_frames: Optional[List[int]] = Defaults.conditioning_start_frames,
+    device: Optional[str] = Defaults.device,
     **kwargs,
 ):
     # check if pipeline_config is a file
