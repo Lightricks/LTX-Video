@@ -25,7 +25,7 @@ This is the official repository for LTX-Video.
   - [Diffusers Integration](#diffusers-integration)
 - [Model User Guide](#model-user-guide)
 - [Community Contribution](#community-contribution)
-- [Training](#trining)
+- [Training](#training)
 - [Join Us!](#join-us)
 - [Acknowledgement](#acknowledgement)
 
@@ -49,7 +49,7 @@ The model supports text-to-image, image-to-video, keyframe-based animation, vide
 
 ## May, 5th, 2025: New model 13B v0.9.7:
 - Release a new 13B model [ltxv-13b-0.9.7-dev](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-13b-0.9.7-dev.safetensors)
-- Release a new quantized model [ltxv-13b-0.9.7-dev-fp8](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-13b-0.9.7-dev-fp8.safetensors) for faster inference with less VRam (Supported in the [official CompfyUI workflow](https://github.com/Lightricks/ComfyUI-LTXVideo/))
+- Release a new quantized model [ltxv-13b-0.9.7-dev-fp8](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-13b-0.9.7-dev-fp8.safetensors) for faster inference with less VRAM (Supported in the [official ComfyUI workflow](https://github.com/Lightricks/ComfyUI-LTXVideo/))
 - Release a new upscalers
   * [ltxv-temporal-upscaler-0.9.7](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-temporal-upscaler-0.9.7.safetensors)
   * [ltxv-spatial-upscaler-0.9.7](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-spatial-upscaler-0.9.7.safetensors)
