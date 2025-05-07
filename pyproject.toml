@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -22,7 +22,8 @@ dependencies = [
     "sentencepiece>=0.1.96",
     "huggingface-hub~=0.30",
     "einops",
-    "timm"
+    "timm",
+    "imageio",
 ]
 
 [project.optional-dependencies]
@@ -35,3 +36,6 @@ inference-script = [
 test = [
     "pytest",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
