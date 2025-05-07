@@ -22,8 +22,7 @@ dependencies = [
     "sentencepiece>=0.1.96",
     "huggingface-hub~=0.30",
     "einops",
-    "timm",
-    "imageio",
+    "timm"
 ]
 
 [project.optional-dependencies]
