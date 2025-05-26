@@ -343,9 +343,15 @@ def create_ltx_video_pipeline(
         text_encoder_model_name_or_path, subfolder="tokenizer"
     )
 
-    transformer = transformer.to(device)
-    vae = vae.to(device)
-    text_encoder = text_encoder.to(device)
+    # Move models to the specified device
+    if precision == "bfloat16":
+        transformer = transformer.to(device, torch.bfloat16)
+    else: 
+        transformer = transformer.to(device)
+
+    vae = vae.to(device, dtype=torch.bfloat16)
+
+    text_encoder = text_encoder.to(device, dtype=torch.bfloat16)
 
     if enhance_prompt:
         prompt_enhancer_image_caption_model = AutoModelForCausalLM.from_pretrained(
@@ -366,11 +372,6 @@ def create_ltx_video_pipeline(
         prompt_enhancer_image_caption_processor = None
         prompt_enhancer_llm_model = None
         prompt_enhancer_llm_tokenizer = None
-
-    vae = vae.to(torch.bfloat16)
-    if precision == "bfloat16" and transformer.dtype != torch.bfloat16:
-        transformer = transformer.to(torch.bfloat16)
-    text_encoder = text_encoder.to(torch.bfloat16)
 
     # Use submodels for the pipeline
     submodel_dict = {
