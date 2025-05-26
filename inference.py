@@ -49,6 +49,11 @@ def get_total_gpu_memory():
     if torch.cuda.is_available():
         total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         return total_memory
+    elif torch.backends.mps.is_available():
+        # MPS does not provide a direct way to get total memory, so we use system memory as a proxy
+        import psutil
+        total_memory = psutil.virtual_memory().total / (1024**3)
+        return total_memory
     return 0
 
 

@@ -32,7 +32,8 @@ inference-script = [
     "matplotlib",
     "imageio[ffmpeg]",
     "av",
-    "opencv-python"
+    "opencv-python",
+    "psutil; platform_system == 'Darwin'"
 ]
 test = [
     "pytest",
