@@ -293,6 +293,12 @@ def main():
         help="List of frame indices where each conditioning item should be applied. Must match the number of conditioning items.",
     )
 
+    parser.add_argument(
+        "--use_chipmunk_attention",
+        action="store_true",
+        help="Use Chipmunk attention kernel",
+    )
+
     args = parser.parse_args()
     logger.warning(f"Running generation with arguments: {args}")
     infer(**vars(args))
@@ -307,6 +313,7 @@ def create_ltx_video_pipeline(
     enhance_prompt: bool = False,
     prompt_enhancer_image_caption_model_name_or_path: Optional[str] = None,
     prompt_enhancer_llm_model_name_or_path: Optional[str] = None,
+    use_chipmunk_attention: bool = False,
 ) -> LTXVideoPipeline:
     ckpt_path = Path(ckpt_path)
     assert os.path.exists(
@@ -321,6 +328,10 @@ def create_ltx_video_pipeline(
 
     vae = CausalVideoAutoencoder.from_pretrained(ckpt_path)
     transformer = Transformer3DModel.from_pretrained(ckpt_path)
+
+    if use_chipmunk_attention:
+        vae.set_use_chipmunk_attention()
+        transformer.set_use_chipmunk_attention()
 
     # Use constructor if sampler is specified, otherwise use from_pretrained
     if sampler == "from_checkpoint" or not sampler:
@@ -351,7 +362,7 @@ def create_ltx_video_pipeline(
         )
         prompt_enhancer_llm_model = AutoModelForCausalLM.from_pretrained(
             prompt_enhancer_llm_model_name_or_path,
-            torch_dtype="bfloat16",
+            torch_dtype=torch.bfloat16,
         )
         prompt_enhancer_llm_tokenizer = AutoTokenizer.from_pretrained(
             prompt_enhancer_llm_model_name_or_path,
@@ -418,6 +429,8 @@ def infer(
         raise ValueError(f"Pipeline config file {pipeline_config} does not exist")
     with open(pipeline_config, "r") as f:
         pipeline_config = yaml.safe_load(f)
+
+    use_chipmunk_attention = pipeline_config.get("use_chipmunk_attention", False)
 
     models_dir = "MODEL_DIR"
 
@@ -540,6 +553,7 @@ def infer(
         enhance_prompt=enhance_prompt,
         prompt_enhancer_image_caption_model_name_or_path=prompt_enhancer_image_caption_model_name_or_path,
         prompt_enhancer_llm_model_name_or_path=prompt_enhancer_llm_model_name_or_path,
+        use_chipmunk_attention=use_chipmunk_attention,
     )
 
     if pipeline_config.get("pipeline_type", None) == "multi-scale":

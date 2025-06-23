@@ -311,6 +311,11 @@ class CausalVideoAutoencoder(AutoencoderKLWrapper):
                 for attention_block in block.attention_blocks:
                     attention_block.set_use_tpu_flash_attention()
 
+    def set_use_chipmunk_attention(self):
+        for block in self.decoder.up_blocks:
+            if isinstance(block, UNetMidBlock3D) and block.attention_blocks:
+                for attention_block in block.attention_blocks:
+                    attention_block.set_use_chipmunk_attention()
 
 class Encoder(nn.Module):
     r"""

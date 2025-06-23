@@ -74,6 +74,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         attention_type: str = "default",
         caption_channels: int = None,
         use_tpu_flash_attention: bool = False,  # if True uses the TPU attention offload ('flash attention')
+        use_chipmunk_attention: bool = False,  # if True uses the Chipmunk attention kernel
         qk_norm: Optional[str] = None,
         positional_embedding_type: str = "rope",
         positional_embedding_theta: Optional[float] = None,
@@ -85,6 +86,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         self.use_tpu_flash_attention = (
             use_tpu_flash_attention  # FIXME: push config down to the attention modules
         )
+        self.use_chipmunk_attention = use_chipmunk_attention
         self.use_linear_projection = use_linear_projection
         self.num_attention_heads = num_attention_heads
         self.attention_head_dim = attention_head_dim
@@ -130,6 +132,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                     norm_eps=norm_eps,
                     attention_type=attention_type,
                     use_tpu_flash_attention=use_tpu_flash_attention,
+                    use_chipmunk_attention=use_chipmunk_attention,
                     qk_norm=qk_norm,
                     use_rope=self.use_rope,
                 )
@@ -169,6 +172,16 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         # push config down to the attention modules
         for block in self.transformer_blocks:
             block.set_use_tpu_flash_attention()
+
+    def set_use_chipmunk_attention(self):
+        r"""
+        Function sets the flag in this object and propagates down the children. The flag will enforce the usage of Chipmunk
+        attention kernel.
+        """
+        logger.info("ENABLE CHIPMUNK ATTENTION -> TRUE")
+        self.use_chipmunk_attention = True
+        for block in self.transformer_blocks:
+            block.set_use_chipmunk_attention()
 
     def create_skip_layer_mask(
         self,

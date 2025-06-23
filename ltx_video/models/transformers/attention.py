@@ -19,7 +19,6 @@ from diffusers.utils import deprecate, logging
 from diffusers.utils.torch_utils import maybe_allow_in_graph
 from einops import rearrange
 from torch import nn
-
 from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
 
 try:
@@ -29,6 +28,8 @@ except ImportError:
     # to the torch_xla lib on setup of container
     pass
 
+from chipmunk.modules.attn import SparseDiffAttn
+from chipmunk.util.layer_counter import LayerCounter
 # code adapted from  https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention.py
 
 logger = logging.get_logger(__name__)
@@ -98,12 +99,14 @@ class BasicTransformerBlock(nn.Module):
         ff_bias: bool = True,
         attention_out_bias: bool = True,
         use_tpu_flash_attention: bool = False,
+        use_chipmunk_attention: bool = False,
         use_rope: bool = False,
     ):
         super().__init__()
         self.only_cross_attention = only_cross_attention
         self.use_tpu_flash_attention = use_tpu_flash_attention
         self.adaptive_norm = adaptive_norm
+        self.use_chipmunk_attention = use_chipmunk_attention
 
         assert standardization_norm in ["layer_norm", "rms_norm"]
         assert adaptive_norm in ["single_scale_shift", "single_scale", "none"]
@@ -189,6 +192,15 @@ class BasicTransformerBlock(nn.Module):
         self.use_tpu_flash_attention = True
         self.attn1.set_use_tpu_flash_attention()
         self.attn2.set_use_tpu_flash_attention()
+
+    def set_use_chipmunk_attention(self):
+        r"""
+        Function sets the flag in this object and propagates down the children. The flag will enforce the usage of Chipmunk
+        attention kernel.
+        """
+        self.use_chipmunk_attention = True
+        self.attn1.set_use_chipmunk_attention()
+        self.attn2.set_use_chipmunk_attention()
 
     def set_chunk_feed_forward(self, chunk_size: Optional[int], dim: int = 0):
         # Sets chunk feed-forward
@@ -402,6 +414,7 @@ class Attention(nn.Module):
         processor: Optional["AttnProcessor"] = None,
         out_dim: int = None,
         use_tpu_flash_attention: bool = False,
+        use_chipmunk_attention: bool = False,
         use_rope: bool = False,
     ):
         super().__init__()
@@ -420,6 +433,7 @@ class Attention(nn.Module):
         self.fused_projections = False
         self.out_dim = out_dim if out_dim is not None else query_dim
         self.use_tpu_flash_attention = use_tpu_flash_attention
+        self.use_chipmunk_attention = use_chipmunk_attention
         self.use_rope = use_rope
 
         # we make use of this private variable to know whether this class is loaded
@@ -521,7 +535,7 @@ class Attention(nn.Module):
         # torch.nn.functional.scaled_dot_product_attention for native Flash/memory_efficient_attention
         # but only if it has the default `scale` argument. TODO remove scale_qk check when we move to torch 2.1
         if processor is None:
-            processor = AttnProcessor2_0()
+            processor = AttnProcessor2_0(use_chipmunk_attention=use_chipmunk_attention)
         self.set_processor(processor)
 
     def set_use_tpu_flash_attention(self):
@@ -529,6 +543,20 @@ class Attention(nn.Module):
         Function sets the flag in this object. The flag will enforce the usage of TPU attention kernel.
         """
         self.use_tpu_flash_attention = True
+
+    def set_use_chipmunk_attention(self):
+        r"""
+        Function sets the flag in this object. The flag will enforce the usage of Chipmunk attention kernel.
+        """
+        self.use_chipmunk_attention = True
+        layer_num, layer_counter = LayerCounter.build_for_layer(
+            is_mlp_sparse=False, is_attn_sparse=True,
+        )
+
+        self.chipmunk_attn = SparseDiffAttn(
+            layer_num=layer_num,
+            layer_counter=layer_counter
+        )
 
     def set_processor(self, processor: "AttnProcessor") -> None:
         r"""
@@ -919,7 +947,7 @@ class Attention(nn.Module):
     def apply_rotary_emb(
         input_tensor: torch.Tensor,
         freqs_cis: Tuple[torch.FloatTensor, torch.FloatTensor],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         cos_freqs = freqs_cis[0]
         sin_freqs = freqs_cis[1]
 
@@ -937,9 +965,6 @@ class AttnProcessor2_0:
     r"""
     Processor for implementing scaled dot-product attention (enabled by default if you're using PyTorch 2.0).
     """
-
-    def __init__(self):
-        pass
 
     def __call__(
         self,
@@ -1053,6 +1078,14 @@ class AttnProcessor2_0:
                 q_segment_ids=q_segment_indexes,
                 kv_segment_ids=attention_mask,
                 sm_scale=attn.scale,
+            )
+        elif attn.use_chipmunk_attention:
+            hidden_states_a = self.chipmunk_attn(
+                query,
+                key,
+                value,
+                attn_mask=attention_mask,
+                dropout_p=0.0,
             )
         else:
             hidden_states_a = F.scaled_dot_product_attention(

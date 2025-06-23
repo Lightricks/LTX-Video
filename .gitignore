@@ -164,3 +164,5 @@ cython_debug/
 # From inference.py
 outputs/
 video_output_*.mp4
+
+MODEL_DIR/

@@ -8,7 +8,7 @@ decode_noise_scale: 0.025
 text_encoder_model_name_or_path: "PixArt-alpha/PixArt-XL-2-1024-MS"
 precision: "bfloat16"
 sampler: "from_checkpoint" # options: "uniform", "linear-quadratic", "from_checkpoint"
-prompt_enhancement_words_threshold: 120
+prompt_enhancement_words_threshold: 0
 prompt_enhancer_image_caption_model_name_or_path: "MiaoshouAI/Florence-2-large-PromptGen-v2.0"
 prompt_enhancer_llm_model_name_or_path: "unsloth/Llama-3.2-3B-Instruct"
 stochastic_sampling: false
