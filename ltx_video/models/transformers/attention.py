@@ -30,6 +30,7 @@ except ImportError:
 
 from chipmunk.modules.attn import SparseDiffAttn
 from chipmunk.util.layer_counter import LayerCounter
+
 # code adapted from  https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention.py
 
 logger = logging.get_logger(__name__)
@@ -200,10 +201,10 @@ class BasicTransformerBlock(nn.Module):
         """
         print("Setting use_chipmunk_attention to True in BasicTransformerBlock")
         self.use_chipmunk_attention = True
-        self.attn1.set_use_chipmunk_attention() 
+        self.attn1.set_use_chipmunk_attention()
         # not using chipmunk for cross-attention
-        # https://youtu.be/Rg9enIRSXmo?si=rAI5UWKULDjQI0hX&t=1730 
-        
+        # https://youtu.be/Rg9enIRSXmo?si=rAI5UWKULDjQI0hX&t=1730
+
     def set_chunk_feed_forward(self, chunk_size: Optional[int], dim: int = 0):
         # Sets chunk feed-forward
         self._chunk_size = chunk_size
@@ -552,11 +553,11 @@ class Attention(nn.Module):
         """
         self.use_chipmunk_attention = True
         layer_num, layer_counter = LayerCounter.build_for_layer(
-            is_mlp_sparse=False, is_attn_sparse=True,
+            is_mlp_sparse=False,
+            is_attn_sparse=True,
         )
         self.chipmunk_attn = SparseDiffAttn(
-            layer_num=layer_num,
-            layer_counter=layer_counter
+            layer_num=layer_num, layer_counter=layer_counter
         )
 
     def set_processor(self, processor: "AttnProcessor") -> None:
@@ -1081,7 +1082,6 @@ class AttnProcessor2_0:
                 sm_scale=attn.scale,
             )
         elif attn.use_chipmunk_attention:
-            print("Running chipmunk attention")
             hidden_states_a = attn.chipmunk_attn(
                 query,
                 key,

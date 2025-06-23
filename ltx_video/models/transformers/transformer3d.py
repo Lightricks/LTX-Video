@@ -7,6 +7,9 @@ import json
 import glob
 from pathlib import Path
 
+from chipmunk.ops.patch import patchify, patchify_rope, unpatchify
+from chipmunk.util.config import GLOBAL_CONFIG
+from einops import rearrange
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.embeddings import PixArtAlphaTextProjection
@@ -340,7 +343,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                 transformer = Transformer3DModel.from_config(transformer_config)
             transformer.load_state_dict(comfy_single_file_state_dict, assign=True)
         return transformer
-
+    
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -356,84 +359,35 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         return_dict: bool = True,
     ):
         """
-        The [`Transformer2DModel`] forward method.
-
-        Args:
-            hidden_states (`torch.LongTensor` of shape `(batch size, num latent pixels)` if discrete, `torch.FloatTensor` of shape `(batch size, channel, height, width)` if continuous):
-                Input `hidden_states`.
-            indices_grid (`torch.LongTensor` of shape `(batch size, 3, num latent pixels)`):
-            encoder_hidden_states ( `torch.FloatTensor` of shape `(batch size, sequence len, embed dims)`, *optional*):
-                Conditional embeddings for cross attention layer. If not given, cross-attention defaults to
-                self-attention.
-            timestep ( `torch.LongTensor`, *optional*):
-                Used to indicate denoising step. Optional timestep to be applied as an embedding in `AdaLayerNorm`.
-            class_labels ( `torch.LongTensor` of shape `(batch size, num classes)`, *optional*):
-                Used to indicate class labels conditioning. Optional class labels to be applied as an embedding in
-                `AdaLayerZeroNorm`.
-            cross_attention_kwargs ( `Dict[str, Any]`, *optional*):
-                A kwargs dictionary that if specified is passed along to the `AttentionProcessor` as defined under
-                `self.processor` in
-                [diffusers.models.attention_processor](https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention_processor.py).
-            attention_mask ( `torch.Tensor`, *optional*):
-                An attention mask of shape `(batch, key_tokens)` is applied to `encoder_hidden_states`. If `1` the mask
-                is kept, otherwise if `0` it is discarded. Mask will be converted into a bias, which adds large
-                negative values to the attention scores corresponding to "discard" tokens.
-            encoder_attention_mask ( `torch.Tensor`, *optional*):
-                Cross-attention mask applied to `encoder_hidden_states`. Two formats supported:
-
-                    * Mask `(batch, sequence_length)` True = keep, False = discard.
-                    * Bias `(batch, 1, sequence_length)` 0 = keep, -10000 = discard.
-
-                If `ndim == 2`: will be interpreted as a mask, then converted into a bias consistent with the format
-                above. This bias will be added to the cross-attention scores.
-            skip_layer_mask ( `torch.Tensor`, *optional*):
-                A mask of shape `(num_layers, batch)` that indicates which layers to skip. `0` at position
-                `layer, batch_idx` indicates that the layer should be skipped for the corresponding batch index.
-            skip_layer_strategy ( `SkipLayerStrategy`, *optional*, defaults to `None`):
-                Controls which layers are skipped when calculating a perturbed latent for spatiotemporal guidance.
-            return_dict (`bool`, *optional*, defaults to `True`):
-                Whether or not to return a [`~models.unets.unet_2d_condition.UNet2DConditionOutput`] instead of a plain
-                tuple.
-
-        Returns:
-            If `return_dict` is True, an [`~models.transformer_2d.Transformer2DModelOutput`] is returned, otherwise a
-            `tuple` where the first element is the sample tensor.
+        The [`Transformer2DModel`] forward method (Chipmunk-patchified variant).
         """
-        # for tpu attention offload 2d token masks are used. No need to transform.
+        use_patch = GLOBAL_CONFIG["patchify"]["is_enabled"]
+        did_patchify = False
+        latent_shape = None
+        if use_patch and hidden_states.dim() == 4:
+            did_patchify = True
+            B, C, H, W = hidden_states.shape
+            latent_shape = (B, C, H, W)
+            hidden_states = patchify(hidden_states)
+            Nv = hidden_states.size(1)
+            indices_grid = rearrange(indices_grid, "b c (h w) -> b c h w", h=H, w=W)
+            indices_grid = patchify(indices_grid).transpose(1, 2)
+            key = (H, W, Nv)
+            if getattr(self, "_rope_key", None) != key:
+                ids = torch.arange(Nv, device=hidden_states.device).unsqueeze(0)
+                self.rope_patchified = patchify_rope(hidden_states.shape, ids, W, H)
+                self._rope_key = key
         if not self.use_tpu_flash_attention:
-            # ensure attention_mask is a bias, and give it a singleton query_tokens dimension.
-            #   we may have done this conversion already, e.g. if we came here via UNet2DConditionModel#forward.
-            #   we can tell by counting dims; if ndim == 2: it's a mask rather than a bias.
-            # expects mask of shape:
-            #   [batch, key_tokens]
-            # adds singleton query_tokens dimension:
-            #   [batch,                    1, key_tokens]
-            # this helps to broadcast it as a bias over attention scores, which will be in one of the following shapes:
-            #   [batch,  heads, query_tokens, key_tokens] (e.g. torch sdp attn)
-            #   [batch * heads, query_tokens, key_tokens] (e.g. xformers or classic attn)
             if attention_mask is not None and attention_mask.ndim == 2:
-                # assume that mask is expressed as:
-                #   (1 = keep,      0 = discard)
-                # convert mask into a bias that can be added to attention scores:
-                #       (keep = +0,     discard = -10000.0)
                 attention_mask = (1 - attention_mask.to(hidden_states.dtype)) * -10000.0
                 attention_mask = attention_mask.unsqueeze(1)
-
-            # convert encoder_attention_mask to a bias the same way we do for attention_mask
             if encoder_attention_mask is not None and encoder_attention_mask.ndim == 2:
-                encoder_attention_mask = (
-                    1 - encoder_attention_mask.to(hidden_states.dtype)
-                ) * -10000.0
+                encoder_attention_mask = (1 - encoder_attention_mask.to(hidden_states.dtype)) * -10000.0
                 encoder_attention_mask = encoder_attention_mask.unsqueeze(1)
-
-        # 1. Input
         hidden_states = self.patchify_proj(hidden_states)
-
         if self.timestep_scale_multiplier:
             timestep = self.timestep_scale_multiplier * timestep
-
         freqs_cis = self.precompute_freqs_cis(indices_grid)
-
         batch_size = hidden_states.shape[0]
         timestep, embedded_timestep = self.adaln_single(
             timestep.flatten(),
@@ -441,35 +395,18 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
             batch_size=batch_size,
             hidden_dtype=hidden_states.dtype,
         )
-        # Second dimension is 1 or number of tokens (if timestep_per_token)
         timestep = timestep.view(batch_size, -1, timestep.shape[-1])
-        embedded_timestep = embedded_timestep.view(
-            batch_size, -1, embedded_timestep.shape[-1]
-        )
-
-        # 2. Blocks
+        embedded_timestep = embedded_timestep.view(batch_size, -1, embedded_timestep.shape[-1])
         if self.caption_projection is not None:
-            batch_size = hidden_states.shape[0]
             encoder_hidden_states = self.caption_projection(encoder_hidden_states)
-            encoder_hidden_states = encoder_hidden_states.view(
-                batch_size, -1, hidden_states.shape[-1]
-            )
-
+            encoder_hidden_states = encoder_hidden_states.view(batch_size, -1, hidden_states.shape[-1])
         for block_idx, block in enumerate(self.transformer_blocks):
             if self.training and self.gradient_checkpointing:
-
-                def create_custom_forward(module, return_dict=None):
+                def create_custom_forward(module):
                     def custom_forward(*inputs):
-                        if return_dict is not None:
-                            return module(*inputs, return_dict=return_dict)
-                        else:
-                            return module(*inputs)
-
+                        return module(*inputs, return_dict=None)
                     return custom_forward
-
-                ckpt_kwargs: Dict[str, Any] = (
-                    {"use_reentrant": False} if is_torch_version(">=", "1.11.0") else {}
-                )
+                ckpt_kwargs = {"use_reentrant": False} if is_torch_version(">=", "1.11.0") else {}
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(block),
                     hidden_states,
@@ -480,11 +417,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                     timestep,
                     cross_attention_kwargs,
                     class_labels,
-                    (
-                        skip_layer_mask[block_idx]
-                        if skip_layer_mask is not None
-                        else None
-                    ),
+                    (skip_layer_mask[block_idx] if skip_layer_mask is not None else None),
                     skip_layer_strategy,
                     **ckpt_kwargs,
                 )
@@ -498,24 +431,16 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                     timestep=timestep,
                     cross_attention_kwargs=cross_attention_kwargs,
                     class_labels=class_labels,
-                    skip_layer_mask=(
-                        skip_layer_mask[block_idx]
-                        if skip_layer_mask is not None
-                        else None
-                    ),
+                    skip_layer_mask=(skip_layer_mask[block_idx] if skip_layer_mask is not None else None),
                     skip_layer_strategy=skip_layer_strategy,
                 )
-
-        # 3. Output
-        scale_shift_values = (
-            self.scale_shift_table[None, None] + embedded_timestep[:, :, None]
-        )
+        scale_shift_values = self.scale_shift_table[None, None] + embedded_timestep[:, :, None]
         shift, scale = scale_shift_values[:, :, 0], scale_shift_values[:, :, 1]
         hidden_states = self.norm_out(hidden_states)
-        # Modulation
         hidden_states = hidden_states * (1 + scale) + shift
         hidden_states = self.proj_out(hidden_states)
+        if did_patchify:
+            hidden_states = unpatchify(hidden_states.transpose(1, 2), latent_shape)
         if not return_dict:
             return (hidden_states,)
-
         return Transformer3DModelOutput(sample=hidden_states)

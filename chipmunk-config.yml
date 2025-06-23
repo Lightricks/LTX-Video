@@ -1,5 +1,5 @@
-steps: 40
-num_model_invocations_per_inference_step: 1
+steps: 27
+num_model_invocations_per_inference_step: 2
 
 patchify:
   is_enabled: false
@@ -9,28 +9,29 @@ mlp:
 
 attn:
   is_enabled: true
-  top_keys: 0.25
+  top_keys: 0.2
   random_keys: 0.01
   # Number of local voxels to use for static local attention
-  local_voxels: 0
-  local_1d_window: 0.05
+  local_voxels: 3
+  local_1d_window: 0.0
   first_n_dense_layers: 2
   recompute_mask: true
-  should_compress_indices: true
+  should_compress_indices: false
 
   # If schedule is not None, will override full_step_every
   full_step_schedule: !!set
     ? 0
     ? 1
+    ? 5
+    ? 10
+    ? 15
+    ? 20
     ? 25
-    ? 26
-    ? 27
-    ? 28
-    ? 35
+    ? 29
 
-    # full_step_every: 10
+  # full_step_every: 5
 
-  provider: cuda
+  provider: triton
 
 offloading:
   global_disable_offloading: true

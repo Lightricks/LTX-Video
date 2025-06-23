@@ -30,5 +30,5 @@ second_pass:
   guidance_timesteps: [1.0]
   skip_block_list: [27]
   num_inference_steps: 30
-  skip_initial_inference_steps: 17
+  skip_initial_inference_steps: 3
   cfg_star_rescale: true
