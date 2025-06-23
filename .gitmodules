@@ -1,0 +1,3 @@
+[submodule "chipmunk"]
+	path = chipmunk
+	url = git@github.com:sandyresearch/chipmunk.git

@@ -198,10 +198,12 @@ class BasicTransformerBlock(nn.Module):
         Function sets the flag in this object and propagates down the children. The flag will enforce the usage of Chipmunk
         attention kernel.
         """
+        print("Setting use_chipmunk_attention to True in BasicTransformerBlock")
         self.use_chipmunk_attention = True
-        self.attn1.set_use_chipmunk_attention()
-        self.attn2.set_use_chipmunk_attention()
-
+        self.attn1.set_use_chipmunk_attention() 
+        # not using chipmunk for cross-attention
+        # https://youtu.be/Rg9enIRSXmo?si=rAI5UWKULDjQI0hX&t=1730 
+        
     def set_chunk_feed_forward(self, chunk_size: Optional[int], dim: int = 0):
         # Sets chunk feed-forward
         self._chunk_size = chunk_size
@@ -535,7 +537,7 @@ class Attention(nn.Module):
         # torch.nn.functional.scaled_dot_product_attention for native Flash/memory_efficient_attention
         # but only if it has the default `scale` argument. TODO remove scale_qk check when we move to torch 2.1
         if processor is None:
-            processor = AttnProcessor2_0(use_chipmunk_attention=use_chipmunk_attention)
+            processor = AttnProcessor2_0()
         self.set_processor(processor)
 
     def set_use_tpu_flash_attention(self):
@@ -552,7 +554,6 @@ class Attention(nn.Module):
         layer_num, layer_counter = LayerCounter.build_for_layer(
             is_mlp_sparse=False, is_attn_sparse=True,
         )
-
         self.chipmunk_attn = SparseDiffAttn(
             layer_num=layer_num,
             layer_counter=layer_counter
@@ -1080,12 +1081,11 @@ class AttnProcessor2_0:
                 sm_scale=attn.scale,
             )
         elif attn.use_chipmunk_attention:
-            hidden_states_a = self.chipmunk_attn(
+            print("Running chipmunk attention")
+            hidden_states_a = attn.chipmunk_attn(
                 query,
                 key,
                 value,
-                attn_mask=attention_mask,
-                dropout_p=0.0,
             )
         else:
             hidden_states_a = F.scaled_dot_product_attention(

@@ -178,6 +178,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         Function sets the flag in this object and propagates down the children. The flag will enforce the usage of Chipmunk
         attention kernel.
         """
+        print("ENABLE CHIPMUNK ATTENTION -> TRUE")
         logger.info("ENABLE CHIPMUNK ATTENTION -> TRUE")
         self.use_chipmunk_attention = True
         for block in self.transformer_blocks:

@@ -1,0 +1,61 @@
+steps: 40
+num_model_invocations_per_inference_step: 1
+
+patchify:
+  is_enabled: false
+
+mlp:
+  is_enabled: false
+
+attn:
+  is_enabled: true
+  top_keys: 0.25
+  random_keys: 0.01
+  # Number of local voxels to use for static local attention
+  local_voxels: 0
+  local_1d_window: 0.05
+  first_n_dense_layers: 2
+  recompute_mask: true
+  should_compress_indices: true
+
+  # If schedule is not None, will override full_step_every
+  full_step_schedule: !!set
+    ? 0
+    ? 1
+    ? 25
+    ? 26
+    ? 27
+    ? 28
+    ? 35
+
+    # full_step_every: 10
+
+  provider: cuda
+
+offloading:
+  global_disable_offloading: true
+  attn.out_cache: true
+  attn.indices: true
+  text_encoders: true
+
+step_caching:
+  is_enabled: false
+  # Feel free to play with this -- it's pretty stable across different schedules!
+  skip_step_schedule: !!set
+    ? 7
+    ? 11
+    ? 13
+    ? 14
+    ? 15
+    ? 17
+    ? 18
+    ? 19
+    ? 21
+    ? 22
+    ? 31
+    ? 33
+    ? 34
+    ? 35
+    ? 37
+    ? 38
+    ? 39

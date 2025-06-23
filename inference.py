@@ -37,6 +37,7 @@ from ltx_video.schedulers.rf import RectifiedFlowScheduler
 from ltx_video.utils.skip_layer_strategy import SkipLayerStrategy
 from ltx_video.models.autoencoders.latent_upsampler import LatentUpsampler
 import ltx_video.pipelines.crf_compressor as crf_compressor
+from chipmunk.util import config as chimpunk_config
 
 MAX_HEIGHT = 720
 MAX_WIDTH = 1280
@@ -330,7 +331,7 @@ def create_ltx_video_pipeline(
     transformer = Transformer3DModel.from_pretrained(ckpt_path)
 
     if use_chipmunk_attention:
-        vae.set_use_chipmunk_attention()
+        print("Use chipmunk attention in inference.py")
         transformer.set_use_chipmunk_attention()
 
     # Use constructor if sampler is specified, otherwise use from_pretrained
@@ -430,7 +431,7 @@ def infer(
     with open(pipeline_config, "r") as f:
         pipeline_config = yaml.safe_load(f)
 
-    use_chipmunk_attention = pipeline_config.get("use_chipmunk_attention", False)
+    use_chipmunk_attention = kwargs.get("use_chipmunk_attention", False)
 
     models_dir = "MODEL_DIR"
 
@@ -785,4 +786,5 @@ def load_media_file(
 
 
 if __name__ == "__main__":
+    chimpunk_config.load_from_file("/root/LTX-Video/chipmunk-config.yml")
     main()
