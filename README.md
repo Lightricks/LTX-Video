@@ -200,6 +200,18 @@ Simply provide a list of paths to the images or video segments you want to condi
 python inference.py --prompt "PROMPT" --conditioning_media_paths IMAGE_OR_VIDEO_PATH_1 IMAGE_OR_VIDEO_PATH_2 --conditioning_start_frames TARGET_FRAME_1 TARGET_FRAME_2 --height HEIGHT --width WIDTH --num_frames NUM_FRAMES --seed SEED --pipeline_config configs/ltxv-13b-0.9.7-distilled.yaml
 ```
 
+#### Customizing Output:
+
+You can specify a custom output filename and format using the `--output_filename` and `--output_format` arguments.
+
+- `--output_filename YOUR_FILE_NAME.mp4`: Saves the output with a specific name. If the extension is omitted or different from `--output_format`, the format specified by `--output_format` will be used.
+- `--output_format gif`: Saves the output as a GIF animation instead of an MP4 video. This is only applicable for video outputs.
+
+Example:
+```bash
+python inference.py --prompt "A cat riding a skateboard" --output_filename "skate_cat.gif" --output_format "gif" --pipeline_config configs/ltxv-13b-0.9.7-distilled.yaml
+```
+
 ## ComfyUI Integration
 To use our model with ComfyUI, please follow the instructions at [https://github.com/Lightricks/ComfyUI-LTXVideo/](https://github.com/Lightricks/ComfyUI-LTXVideo/).
 
