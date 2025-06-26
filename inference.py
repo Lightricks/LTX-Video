@@ -163,17 +163,33 @@ def get_unique_filename(
     seed: int,
     resolution: tuple[int, int, int],
     dir: Path,
+    output_filename_arg: Optional[str] = None,
+    output_format_arg: Optional[str] = None,
     endswith=None,
     index_range=1000,
 ) -> Path:
-    base_filename = f"{base}_{convert_prompt_to_filename(prompt, max_len=30)}_{seed}_{resolution[0]}x{resolution[1]}x{resolution[2]}"
-    for i in range(index_range):
-        filename = dir / f"{base_filename}_{i}{endswith if endswith else ''}{ext}"
-        if not os.path.exists(filename):
-            return filename
-    raise FileExistsError(
-        f"Could not find a unique filename after {index_range} attempts."
-    )
+    if output_filename_arg:
+        # If a custom filename is provided, use it directly
+        # Ensure the extension matches the output_format if provided, or use the default ext
+        name, current_ext = os.path.splitext(output_filename_arg)
+        if output_format_arg:
+            final_ext = f".{output_format_arg}"
+        elif current_ext:
+            final_ext = current_ext
+        else:
+            final_ext = ext # Default extension if not specified in filename or format arg
+        return dir / f"{name}{final_ext}"
+    else:
+        # Generate a unique filename
+        final_ext = f".{output_format_arg}" if output_format_arg else ext
+        base_filename = f"{base}_{convert_prompt_to_filename(prompt, max_len=30)}_{seed}_{resolution[0]}x{resolution[1]}x{resolution[2]}"
+        for i in range(index_range):
+            filename = dir / f"{base_filename}_{i}{endswith if endswith else ''}{final_ext}"
+            if not os.path.exists(filename):
+                return filename
+        raise FileExistsError(
+            f"Could not find a unique filename after {index_range} attempts."
+        )
 
 
 def seed_everething(seed: int):
@@ -197,6 +213,19 @@ def main():
         type=str,
         default=None,
         help="Path to the folder to save output video, if None will save in outputs/ directory.",
+    )
+    parser.add_argument(
+        "--output_filename",
+        type=str,
+        default=None,
+        help="Custom filename for the output. If not provided, a unique filename will be generated.",
+    )
+    parser.add_argument(
+        "--output_format",
+        type=str,
+        default="mp4",
+        choices=["mp4", "gif"],
+        help="Format for the output video (mp4 or gif). Default is mp4.",
     )
     parser.add_argument("--seed", type=int, default="171198")
 
@@ -395,7 +424,9 @@ def create_latent_upsampler(latent_upsampler_model_path: str, device: str):
 
 
 def infer(
-    output_path: Optional[str],
+    output_path_arg: Optional[str], # Renamed to avoid conflict
+    output_filename_arg: Optional[str], # Renamed to avoid conflict
+    output_format_arg: Optional[str], # Renamed to avoid conflict
     seed: int,
     pipeline_config: str,
     image_cond_noise_scale: float,
@@ -489,8 +520,8 @@ def infer(
         offload_to_cpu = offload_to_cpu and get_total_gpu_memory() < 30
 
     output_dir = (
-        Path(output_path)
-        if output_path
+        Path(output_path_arg)
+        if output_path_arg
         else Path(f"outputs/{datetime.today().strftime('%Y-%m-%d')}")
     )
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -644,25 +675,37 @@ def infer(
         if video_np.shape[0] == 1:
             output_filename = get_unique_filename(
                 f"image_output_{i}",
-                ".png",
+                ".png", # Default extension for single image
                 prompt=prompt,
                 seed=seed,
                 resolution=(height, width, num_frames),
                 dir=output_dir,
+                output_filename_arg=output_filename_arg,
+                # output_format_arg is not applicable for single images, so we don't pass it
             )
             imageio.imwrite(output_filename, video_np[0])
         else:
+            # Determine the correct extension based on output_format_arg or default to .mp4
+            file_extension = f".{output_format_arg}" if output_format_arg else ".mp4"
+
             output_filename = get_unique_filename(
                 f"video_output_{i}",
-                ".mp4",
+                file_extension, # Use determined extension
                 prompt=prompt,
                 seed=seed,
                 resolution=(height, width, num_frames),
                 dir=output_dir,
+                output_filename_arg=output_filename_arg,
+                output_format_arg=output_format_arg,
             )
 
-            # Write video
-            with imageio.get_writer(output_filename, fps=fps) as video:
+            # Write video or GIF
+            if output_format_arg == "gif":
+                # Ensure fps is reasonable for GIF, imageio might have specific behavior
+                # For simplicity, we'll use the same fps. Consider adding specific GIF fps logic if needed.
+                imageio.mimsave(output_filename, video_np, fps=fps)
+            else: # Default to mp4 or if mp4 is specified
+                with imageio.get_writer(output_filename, fps=fps) as video:
                 for frame in video_np:
                     video.append_data(frame)
 

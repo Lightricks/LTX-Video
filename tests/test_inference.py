@@ -323,3 +323,98 @@ def test_prompt_enhancement(tmp_path, test_paths, monkeypatch):
     assert (
         prompts_used[0] == original_prompt
     ), f"Expected original prompt to be used, but got: {prompts_used[0]}"
+
+
+@pytest.mark.parametrize(
+    "output_filename, output_format, expected_name, expected_ext",
+    [
+        (None, None, "video_output_0_a-young-woman_42_512x768x25_0", ".mp4"), # Default case
+        ("custom_video", None, "custom_video", ".mp4"), # Custom name, default format
+        ("custom_video.avi", None, "custom_video", ".avi"), # Custom name with ext, default format
+        (None, "gif", "video_output_0_a-young-woman_42_512x768x25_0", ".gif"), # Default name, gif format
+        ("custom_video", "gif", "custom_video", ".gif"), # Custom name, gif format
+        ("custom_video.mp4", "gif", "custom_video", ".gif"), # Custom name with ext, gif format (format arg takes precedence)
+        ("custom_image", None, "custom_image", ".png"), # Custom name for single image
+        ("custom_image.jpeg", None, "custom_image", ".jpeg"), # Custom name with ext for single image
+    ],
+    ids=lambda x: f"{x}"
+)
+def test_output_filename_and_format(tmp_path, test_paths, output_filename, output_format, expected_name, expected_ext):
+    is_single_image_test = "image" in expected_name
+    num_frames = 1 if is_single_image_test else 25 # 1 frame for image, 25 for video
+
+    params = {
+        "seed": 42,
+        "image_cond_noise_scale": 0.15,
+        "height": 512,
+        "width": 768,
+        "num_frames": num_frames,
+        "frame_rate": 25,
+        "prompt": "A young woman", # Shorter prompt for simpler filename
+        "negative_prompt": "worst quality",
+        "offload_to_cpu": False,
+        "output_path_arg": tmp_path,
+        "output_filename_arg": output_filename,
+        "output_format_arg": output_format,
+    }
+
+    config_data = {
+        "pipeline_type": "base",
+        "num_inference_steps": 1, # Faster test
+        "guidance_scale": 2.5,
+        "stg_scale": 1,
+        "stg_rescale": 0.7,
+        "stg_mode": "attention_values",
+        "stg_skip_layers": "1",
+        "precision": "bfloat16",
+        "decode_timestep": 0.05,
+        "decode_noise_scale": 0.025,
+        "checkpoint_path": test_paths["ckpt_path"],
+        "text_encoder_model_name_or_path": test_paths["text_encoder_model_name_or_path"],
+        "prompt_enhancer_image_caption_model_name_or_path": test_paths["prompt_enhancer_image_caption_model_name_or_path"],
+        "prompt_enhancer_llm_model_name_or_path": test_paths["prompt_enhancer_llm_model_name_or_path"],
+        "prompt_enhancement_words_threshold": 0, # Disable enhancement for predictable filename
+        "sampler": "from_checkpoint",
+    }
+
+    temp_config_path = tmp_path / "config.yaml"
+    with open(temp_config_path, "w") as f:
+        yaml.dump(config_data, f)
+
+    # For single image, base name will be image_output_0...
+    if is_single_image_test and output_filename is None:
+        expected_name = "image_output_0_a-young-woman_42_512x768x1_0"
+
+
+    infer(**{**params, "pipeline_config": temp_config_path})
+
+    expected_file_path = tmp_path / (expected_name + expected_ext)
+    assert expected_file_path.exists(), f"Expected output file {expected_file_path} was not created."
+
+    # Verify file is not empty
+    assert expected_file_path.stat().st_size > 0, f"File {expected_file_path} is empty."
+
+    # Rudimentary check for format based on extension (more robust checks would require imageio/ffmpeg)
+    if not is_single_image_test: # Video checks
+        if expected_ext == ".gif":
+            # Try to read as gif
+            try:
+                import imageio
+                imageio.mimread(expected_file_path)
+            except Exception as e:
+                pytest.fail(f"Failed to read generated GIF {expected_file_path}: {e}")
+        elif expected_ext == ".mp4":
+            # Try to read as mp4
+            try:
+                import imageio
+                reader = imageio.get_reader(expected_file_path)
+                assert reader.count_frames() > 0
+                reader.close()
+            except Exception as e:
+                pytest.fail(f"Failed to read generated MP4 {expected_file_path}: {e}")
+    else: # Single image check
+        try:
+            from PIL import Image
+            Image.open(expected_file_path)
+        except Exception as e:
+            pytest.fail(f"Failed to read generated image {expected_file_path}: {e}")
