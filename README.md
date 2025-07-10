@@ -106,7 +106,7 @@ python -m pip install -e \[inference\]
 
 📝 **Note:** For best results, we recommend using our [ComfyUI](#comfyui-integration) workflow. We're working on updating the inference.py script to match the high quality and output fidelity of ComfyUI.
 
-To use our model, please follow the inference code in [inference.py](./inference.py):
+To use the LTX-Video model, please follow the inference code in [inference.py](./inference.py):
 
 #### For image-to-video generation:
 
@@ -150,10 +150,10 @@ infer(
 ```
 
 ## ComfyUI Integration
-To use our model with ComfyUI, please follow the instructions at [https://github.com/Lightricks/ComfyUI-LTXVideo/](https://github.com/Lightricks/ComfyUI-LTXVideo/).
+To use the LTX-Video model and sample workflows with ComfyUI, please follow the instructions in the [ComfyUI-LTXVideo repo](https://github.com/Lightricks/ComfyUI-LTXVideo/).
 
 ## Diffusers Integration
-To use our model with the Diffusers Python library, check out the [official documentation](https://huggingface.co/docs/diffusers/main/en/api/pipelines/ltx_video).
+To use the LTX-Video model with the Diffusers Python library, check out the [official documentation](https://huggingface.co/docs/diffusers/main/en/api/pipelines/ltx_video).
 
 Diffusers also support an 8-bit version of LTX-Video, [see details below](#ltx-videoq8)
 
