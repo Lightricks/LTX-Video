@@ -59,12 +59,12 @@ The model supports image-to-video, keyframe-based animation, video extension (bo
 
 # News
 
-## July, 16th, 2025: New Distilled models v0.9.8 with up to 60 seconds of video:
+## July 16th, 2025: New Distilled models v0.9.8 with up to 60 seconds of video:
 - Long shot generation in LTXV-13B!
   * LTX-Video now supports up to 60 seconds of video.
   * Compatible also with the official IC-LoRAs.
   * Try now in [ComfyUI](https://github.com/Lightricks/ComfyUI-LTXVideo/tree/master/example_workflows/ltxv-13b-i2v-long-multi-prompt.json).
-- Release a new distilled models:
+- Release new distilled models:
   * 13B distilled model [ltxv-13b-0.9.8-distilled](https://github.com/Lightricks/LTX-Video/blob/main/configs/ltxv-13b-0.9.8-distilled.yaml)
   * 2B distilled model [ltxv-2b-0.9.8-distilled](https://github.com/Lightricks/LTX-Video/blob/main/configs/ltxv-2b-0.9.8-distilled.yaml)
   * Both models are distilled from the same base model [ltxv-13b-0.9.8-dev](https://github.com/Lightricks/LTX-Video/blob/main/configs/ltxv-13b-0.9.8-dev.yaml) and are compatible for use together in the same multiscale pipeline.
@@ -92,8 +92,8 @@ The model supports image-to-video, keyframe-based animation, video extension (bo
 
 ## May, 5th, 2025: New model 13B v0.9.7:
 - Release a new 13B model [ltxv-13b-0.9.7-dev](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-13b-0.9.7-dev.safetensors)
-- Release a new quantized model [ltxv-13b-0.9.7-dev-fp8](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-13b-0.9.7-dev-fp8.safetensors) for faster inference with less VRam
-- Release a new upscalers
+- Release a new quantized model [ltxv-13b-0.9.7-dev-fp8](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-13b-0.9.7-dev-fp8.safetensors) for faster inference with less VRAM
+- Release new upscalers
   * [ltxv-temporal-upscaler-0.9.7](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-temporal-upscaler-0.9.7.safetensors)
   * [ltxv-spatial-upscaler-0.9.7](https://huggingface.co/Lightricks/LTX-Video/blob/main/ltxv-spatial-upscaler-0.9.7.safetensors)
 - Breakthrough prompt adherence and physical understanding.
@@ -142,7 +142,7 @@ The model supports image-to-video, keyframe-based animation, video extension (bo
 - Reference contributions from the community in the readme file
 - Relax transformers dependency
 
-## November 21th, 2024: Initial release v0.9.0
+## November 21st, 2024: Initial release v0.9.0
 - Initial release of LTX-Video
 - Support text-to-video and image-to-video generation
 
