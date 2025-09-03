@@ -188,6 +188,21 @@ source env/bin/activate
 python -m pip install -e .\[inference\]
 ```
 
+For the AMD ROCm GPU, you could follow the instruction from [Pytorch.org](https://pytorch.org/) to install the ROCm version of PyTorch. That will let you run LTX-Video with AMD Instince and Radeon GPU.
+Just one line to install it before installing other dependency libs.
+
+```bash
+git clone https://github.com/Lightricks/LTX-Video.git
+cd LTX-Video
+
+# create env
+python -m venv env
+source env/bin/activate
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4 # Update to the lastes version as required
+python -m pip install -e .\[inference\]
+```
+
+
 #### FP8 Kernels (optional)
 
 [FP8 kernels](https://github.com/Lightricks/LTXVideo-Q8-Kernels) developed for LTX-Video provide performance boost on supported graphics cards (Ada architecture and later). To install FP8 kernels, follow the instructions in that repository.
