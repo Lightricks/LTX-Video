@@ -177,6 +177,7 @@ The model is accessible right away via the following links:
 ### Installation
 The codebase was tested with Python 3.10.5, CUDA version 12.2, and supports PyTorch >= 2.1.2.
 On macOS, MPS was tested with PyTorch 2.3.0, and should support PyTorch == 2.3 or >= 2.6.
+(**For AMD Instinct/ROCm, see the section below.**)
 
 ```bash
 git clone https://github.com/Lightricks/LTX-Video.git
@@ -186,6 +187,22 @@ cd LTX-Video
 python -m venv env
 source env/bin/activate
 python -m pip install -e .\[inference\]
+```
+
+#### Installation for AMD Instinct GPUs 
+Tested on Python 3.11 with PyTorch 2.8.0 (ROCm 6.4) on Linux x86_64. To install on AMD Instinct GPUs, run:
+
+```bash
+git clone https://github.com/Lightricks/LTX-Video.git
+cd LTX-Video
+
+# create env
+python -m venv env
+source env/bin/activate
+pip install -e .[inference] \
+  -c constraints/rocm6.4.txt \
+  --index-url https://download.pytorch.org/whl/rocm6.4 \
+  --extra-index-url https://pypi.org/simple
 ```
 
 #### FP8 Kernels (optional)
