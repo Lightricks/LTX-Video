@@ -2,12 +2,12 @@
 
 # LTX-Video
 
-[![Website](https://img.shields.io/badge/Website-LTXV-181717?logo=google-chrome)](https://www.lightricks.com/ltxv)
+[![Website](https://img.shields.io/badge/Website-LTXV-181717?logo=google-chrome)](https://ltx.video)
 [![Model](https://img.shields.io/badge/HuggingFace-Model-orange?logo=huggingface)](https://huggingface.co/Lightricks/LTX-Video)
-[![Demo](https://img.shields.io/badge/Demo-Try%20Now-brightgreen?logo=vercel)](https://app.ltx.studio/motion-workspace?videoModel=ltxv-13b)
+[![Demo](https://img.shields.io/badge/Demo-Try%20Now-brightgreen?logo=vercel)](https://app.ltx.studio/ltx-2-playground/t2v)
 [![Paper](https://img.shields.io/badge/Paper-arXiv-B31B1B?logo=arxiv)](https://arxiv.org/abs/2501.00103)
 [![Trainer](https://img.shields.io/badge/LTXV-Trainer-9146FF?logo=github)](https://github.com/Lightricks/LTX-Video-Trainer)
-[![Discord](https://img.shields.io/badge/Join-Discord-5865F2?logo=discord)](https://discord.gg/Mn8BRgUKKy)
+[![Discord](https://img.shields.io/badge/Join-Discord-5865F2?logo=discord)](https://discord.gg/ltxplatform)
 
 This is the official repository for LTX-Video.
 
@@ -16,7 +16,7 @@ This is the official repository for LTX-Video.
 ## Table of Contents
 
 - [Introduction](#introduction)
-- [What's new](#news)
+- [What's New](#news)
 - [Models](#models)
 - [Quick Start Guide](#quick-start-guide)
   - [Online demo](#online-inference)
@@ -29,17 +29,15 @@ This is the official repository for LTX-Video.
 - [Community Contribution](#community-contribution)
 - [Training](#training)
 - [Control Models](#control-models)
-- [Join Us!](#join-us-)
+- [Join Us!](#join-us)
 - [Acknowledgement](#acknowledgement)
 
 # Introduction
 
-LTX-Video is the first DiT-based video generation model that can generate high-quality videos in *real-time*.
-It can generate 30 FPS videos at 1216×704 resolution, faster than it takes to watch them.
-The model is trained on a large-scale dataset of diverse videos and can generate high-resolution videos
-with realistic and diverse content.
+LTX-Video is the first DiT-based video generation model that contains all core capabilities of modern video generation in one model: synchronized audio and video, high fidelity, multiple performance modes, production-ready outputs, API access, and open access. It can generate up to 50 FPS videos at native 4K resolution with synchronized audio in one pass.
+The model is trained on a large-scale dataset of diverse videos and can generate high-resolution videos with realistic and diverse content.
 
-The model supports image-to-video, keyframe-based animation, video extension (both forward and backward), video-to-video transformations, and any combination of these features.
+The model supports image-to-video, multi-keyframe conditioning, keyframe-based animation, video extension (both forward and backward), video-to-video transformations, and any combination of these features.
 
 ### Image-to-video examples
 | | | |
@@ -58,6 +56,18 @@ The model supports image-to-video, keyframe-based animation, video extension (bo
 | ![control3](./docs/_static/ltx-video_ic_2v_example_00003.gif) | ![control4](./docs/_static/ltx-video_ic_2v_example_00004.gif) |
 
 # News
+
+## October 23, 2025: LTX-2 Announced
+
+Today we announced our newest foundation model, LTX-2. LTX-2 represents a major leap forward from our previous model, LTXV 0.9.8. Here’s what’s new:
+* **Audio + Video, Together**: Visuals and sound are generated in one coherent process, with motion, dialogue, ambience, and music flowing simultaneously.
+* **4K Fidelity**: Professional-grade precision with native 4K and up to 50 fps, sharp textures, clean motion, and synchronized audio.
+* **Longer Generations**: LTX-2 supports longer, continuous clips with synchronized audio up to 10 seconds.
+* **Low Cost & Efficiency**: Up to 50% lower compute cost than competing models, powered by a multi-GPU inference stack.
+* **Creative Control**: Multi-keyframe conditioning, 3D camera logic, and LoRA fine-tuning deliver frame-level precision and style consistency.
+
+For more details, please see our [blog post](https://website.ltx.video/blog/introducing-ltx-2). LTX-2 model weights, code, and benchmarks will be released to the community later in 2025. 
+
 
 ## July, 16th, 2025: New Distilled models v0.9.8 with up to 60 seconds of video:
 - Long shot generation in LTXV-13B!
@@ -147,7 +157,7 @@ The model supports image-to-video, keyframe-based animation, video extension (bo
 - Support text-to-video and image-to-video generation
 
 
-# Models & Workflows
+# Models
 
 | Name                    | Notes                                                                                      | inference.py config                                                                                                                                      | ComfyUI workflow (Recommended) |
 |-------------------------|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|
@@ -319,7 +329,7 @@ A community project providing additional nodes for enhanced control over the LTX
 ...is welcome! If you have a project or tool that integrates with LTX-Video,
 please let us know by opening an issue or pull request.
 
-# ⚡️ Training
+# Training
 
 We provide an open-source repository for fine-tuning the LTX-Video model: [LTX-Video-Trainer](https://github.com/Lightricks/LTX-Video-Trainer).
 This repository supports both the 2B and 13B model variants, enabling full fine-tuning as well as LoRA (Low-Rank Adaptation) fine-tuning for more efficient training. This includes:
@@ -330,7 +340,7 @@ This repository supports both the 2B and 13B model variants, enabling full fine-
 Explore the repository to customize the model for your specific use cases!
 More information and training instructions can be found in the [README](https://github.com/Lightricks/LTX-Video-Trainer/blob/main/README.md).
 
-# 🎬 Control Models
+# Control Models
 
 [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) repository now contains workflows and models for 3 specialized models that enable precise control over LTX-Video generation:
 
@@ -338,7 +348,7 @@ Pose Control, Depth Control and Canny Control
 
 **Example ComfyUI Workflow (for all control types):** [ic-lora.json](https://github.com/Lightricks/ComfyUI-LTXVideo/blob/master/example_workflows/ic_lora/ic-lora.json)
 
-# 🚀 Join Us
+# Join Us
 
 Want to work on cutting-edge AI research and make a real impact on millions of users worldwide?
 
