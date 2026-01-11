@@ -220,7 +220,7 @@ cd LTX-Video
 
 # create env
 python -m venv env
-source env/bin/activate
+source ./env/Scripts/activate
 python -m pip install -e .\[inference\]
 ```
 
