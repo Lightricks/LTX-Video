@@ -37,6 +37,14 @@ module.exports = {
       params: {
         venv: "env"
       }
+    },
+    // Clean up duplicate dist-info files to prevent version conflicts after linking
+    {
+      method: "shell.run",
+      params: {
+        venv: "env",
+        message: "python scripts/cleanup_dist_info.py"
+      }
     }
   ]
 }
