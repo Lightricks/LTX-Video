@@ -1,0 +1,6 @@
+{
+  "version": "5.0",
+  "title": "LTX-Video",
+  "description": "Real-time video generation with LTX-Video DiT model. Supports text-to-video, image-to-video, and video extension.",
+  "icon": "icon.png"
+}

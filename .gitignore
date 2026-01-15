@@ -166,3 +166,10 @@ outputs/
 *.mp4
 *.png
 !tests/utils/car.png
+!icon.png
+
+# Pinokio
+logs/
+LTX-Video-Q8-Kernels.git/
+.gradio/
+.claude/
