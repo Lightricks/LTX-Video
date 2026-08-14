@@ -224,6 +224,17 @@ source env/bin/activate
 python -m pip install -e .\[inference\]
 ```
 
+#### Model access
+
+`inference.py` downloads model weights from the Hugging Face Hub on first run. Before running local inference:
+
+1. Visit the [LTX-Video model page](https://huggingface.co/Lightricks/LTX-Video) and accept the model terms if prompted.
+2. Authenticate locally with the Hugging Face CLI so `hf_hub_download()` can access the weights:
+
+```bash
+hf auth login
+```
+
 #### FP8 Kernels (optional)
 
 [FP8 kernels](https://github.com/Lightricks/LTXVideo-Q8-Kernels) developed for LTX-Video provide performance boost on supported graphics cards (Ada architecture and later). To install FP8 kernels, follow the instructions in that repository.
