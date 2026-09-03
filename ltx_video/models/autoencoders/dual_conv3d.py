@@ -24,6 +24,10 @@ class DualConv3d(nn.Module):
 
         self.in_channels = in_channels
         self.out_channels = out_channels
+        if padding_mode not in {"zeros", "reflect", "replicate", "circular"}:
+            raise ValueError(
+                "padding_mode must be one of 'zeros', 'reflect', 'replicate', or 'circular'"
+            )
         self.padding_mode = padding_mode
         # Ensure kernel_size, stride, padding, and dilation are tuples of length 3
         if isinstance(kernel_size, int):
@@ -100,32 +104,70 @@ class DualConv3d(nn.Module):
         else:
             return self.forward_with_2d(x=x, skip_time_conv=skip_time_conv)
 
+    def _pad_input(self, x, padding):
+        """Apply convolution padding before a functional convolution.
+
+        ``torch.nn.functional.conv{1,2,3}d`` does not expose the
+        ``padding_mode`` argument provided by ``nn.Conv*``.  Passing it on to
+        the functional operators therefore raises a ``TypeError`` for every
+        non-trivial ``DualConv3d`` invocation.  Padding explicitly keeps the
+        factorized 2-D/1-D and native 3-D paths equivalent while preserving
+        all padding modes supported by ``nn.Conv3d``.
+        """
+        padding = tuple(padding)
+        if x.ndim == 5:
+            # F.pad orders values as (W-left, W-right, H-left, H-right,
+            # D-left, D-right), while convolution tuples are D, H, W.
+            pad = (
+                padding[2],
+                padding[2],
+                padding[1],
+                padding[1],
+                padding[0],
+                padding[0],
+            )
+        elif x.ndim == 4:
+            # The flattened spatial path receives the spatial part of a
+            # 3-D padding tuple.
+            pad = (padding[2], padding[2], padding[1], padding[1])
+        elif x.ndim == 3:
+            # The temporal path is represented as a 1-D convolution.
+            pad = (padding[0], padding[0])
+        else:
+            raise ValueError(f"Expected a 3-D, 4-D, or 5-D tensor, got {x.ndim}-D")
+
+        if not any(pad):
+            return x
+        if self.padding_mode == "zeros":
+            return F.pad(x, pad, mode="constant", value=0.0)
+        return F.pad(x, pad, mode=self.padding_mode)
+
     def forward_with_3d(self, x, skip_time_conv):
         # First convolution
+        x = self._pad_input(x, self.padding1)
         x = F.conv3d(
             x,
             self.weight1,
             self.bias1,
-            self.stride1,
-            self.padding1,
-            self.dilation1,
-            self.groups,
-            padding_mode=self.padding_mode,
+            stride=self.stride1,
+            padding=0,
+            dilation=self.dilation1,
+            groups=self.groups,
         )
 
         if skip_time_conv:
             return x
 
         # Second convolution
+        x = self._pad_input(x, self.padding2)
         x = F.conv3d(
             x,
             self.weight2,
             self.bias2,
-            self.stride2,
-            self.padding2,
-            self.dilation2,
-            self.groups,
-            padding_mode=self.padding_mode,
+            stride=self.stride2,
+            padding=0,
+            dilation=self.dilation2,
+            groups=self.groups,
         )
 
         return x
@@ -139,17 +181,16 @@ class DualConv3d(nn.Module):
         weight1 = self.weight1.squeeze(2)
         # Select stride, padding, and dilation for the 2D convolution
         stride1 = (self.stride1[1], self.stride1[2])
-        padding1 = (self.padding1[1], self.padding1[2])
         dilation1 = (self.dilation1[1], self.dilation1[2])
+        x = self._pad_input(x, self.padding1)
         x = F.conv2d(
             x,
             weight1,
             self.bias1,
-            stride1,
-            padding1,
-            dilation1,
-            self.groups,
-            padding_mode=self.padding_mode,
+            stride=stride1,
+            padding=0,
+            dilation=dilation1,
+            groups=self.groups,
         )
 
         _, _, h, w = x.shape
@@ -165,17 +206,16 @@ class DualConv3d(nn.Module):
         weight2 = self.weight2.squeeze(-1).squeeze(-1)
         # Use only the relevant dimension for stride, padding, and dilation for the 1D convolution
         stride2 = self.stride2[0]
-        padding2 = self.padding2[0]
         dilation2 = self.dilation2[0]
+        x = self._pad_input(x, self.padding2)
         x = F.conv1d(
             x,
             weight2,
             self.bias2,
-            stride2,
-            padding2,
-            dilation2,
-            self.groups,
-            padding_mode=self.padding_mode,
+            stride=stride2,
+            padding=0,
+            dilation=dilation2,
+            groups=self.groups,
         )
         x = rearrange(x, "(b h w) c d -> b c d h w", b=b, h=h, w=w)
 
