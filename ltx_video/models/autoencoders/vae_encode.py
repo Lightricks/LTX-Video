@@ -229,8 +229,15 @@ def normalize_latents(
     latents: Tensor, vae: AutoencoderKL, vae_per_channel_normalize: bool = False
 ) -> Tensor:
     return (
-        (latents - vae.mean_of_means.to(latents.dtype).view(1, -1, 1, 1, 1))
-        / vae.std_of_means.to(latents.dtype).view(1, -1, 1, 1, 1)
+        (
+            latents
+            - vae.mean_of_means.to(
+                device=latents.device, dtype=latents.dtype
+            ).view(1, -1, 1, 1, 1)
+        )
+        / vae.std_of_means.to(
+            device=latents.device, dtype=latents.dtype
+        ).view(1, -1, 1, 1, 1)
         if vae_per_channel_normalize
         else latents * vae.config.scaling_factor
     )
@@ -240,8 +247,13 @@ def un_normalize_latents(
     latents: Tensor, vae: AutoencoderKL, vae_per_channel_normalize: bool = False
 ) -> Tensor:
     return (
-        latents * vae.std_of_means.to(latents.dtype).view(1, -1, 1, 1, 1)
-        + vae.mean_of_means.to(latents.dtype).view(1, -1, 1, 1, 1)
+        latents
+        * vae.std_of_means.to(
+            device=latents.device, dtype=latents.dtype
+        ).view(1, -1, 1, 1, 1)
+        + vae.mean_of_means.to(
+            device=latents.device, dtype=latents.dtype
+        ).view(1, -1, 1, 1, 1)
         if vae_per_channel_normalize
         else latents / vae.config.scaling_factor
     )
