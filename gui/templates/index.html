@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LTX Video Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #result { margin-top: 30px; }
+        #video-container { margin-top: 20px; }
+        .status { padding: 10px; border-radius: 4px; margin-top: 10px; }
+        .status.running { background-color: #fff3cd; color: #856404; }
+        .status.completed { background-color: #d4edda; color: #155724; }
+        .status.failed { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LTX Video Generator</h1>
+        <div class="form-group">
+            <label for="prompt">Prompt:</label>
+            <input type="text" id="prompt" placeholder="Enter your prompt here" value="A cat walking in a park">
+        </div>
+        <div class="form-group">
+            <label for="num_frames">Number of Frames (set to 1 for a single image):</label>
+            <input type="number" id="num_frames" value="1" min="1">
+        </div>
+        <div class="form-group">
+            <label for="width">Width:</label>
+            <input type="number" id="width" value="256">
+        </div>
+        <div class="form-group">
+            <label for="height">Height:</label>
+            <input type="number" id="height" value="256">
+        </div>
+        <button id="generate">Generate Video</button>
+        <div id="result">
+            <div id="status" class="status"></div>
+            <div id="logs"></div>
+            <div id="video-container"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('generate').addEventListener('click', async () => {
+            const prompt = document.getElementById('prompt').value;
+            const num_frames = parseInt(document.getElementById('num_frames').value);
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+
+            const statusDiv = document.getElementById('status');
+            const logsDiv = document.getElementById('logs');
+            const videoContainer = document.getElementById('video-container');
+
+            statusDiv.textContent = 'Starting generation...';
+            statusDiv.className = 'status running';
+            logsDiv.innerHTML = '';
+            videoContainer.innerHTML = '';
+
+            try {
+                // Start the generation
+                const response = await fetch('/run', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt,
+                        num_frames,
+                        width,
+                        height
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to start generation');
+                }
+
+                let runId = data.run_id;
+                statusDiv.textContent = 'Generation started. Waiting for completion...';
+
+                // Poll for status
+                while (true) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // wait 2 seconds
+                    const statusResponse = await fetch(`/status/${runId}`);
+                    const statusData = await statusResponse.json();
+
+                    // Update logs
+                    if (statusData.logs && statusData.logs.length > 0) {
+                        logsDiv.innerHTML = '<strong>Logs:</strong><br>' + statusData.logs.map(log => esc(log)).join('<br>');
+                    }
+
+                    if (statusData.status === 'completed') {
+                        statusDiv.textContent = 'Generation completed!';
+                        statusDiv.className = 'status completed';
+                        if (statusData.output_file) {
+                            const filename = statusData.output_file.split('/').pop(); // get filename from path
+                            videoContainer.innerHTML = `<video controls width="100%"><source src="/output/${filename}" type="video/mp4">Your browser does not support the video tag.</video>`;
+                        } else {
+                            videoContainer.textContent = 'No output file generated.';
+                        }
+                        break;
+                    } else if (statusData.status === 'failed') {
+                        statusDiv.textContent = 'Generation failed.';
+                        statusDiv.className = 'status failed';
+                        videoContainer.textContent = `Error: ${statusData.error || 'Unknown error'}`;
+                        break;
+                    }
+                    // else still running, continue loop
+                }
+            } catch (error) {
+                statusDiv.textContent = 'Error: ' + error.message;
+                statusDiv.className = 'status failed';
+                console.error(error);
+            }
+        });
+
+        function esc(str) {
+            return str.replace(/[&<>"']/g, function(tag) {
+                const map = {
+                    '&': '&',
+                    '<': '<',
+                    '>': '>',
+                    '"': '"',
+                    "'": '''
+                };
+                return map[tag] || tag;
+            });
+        }
+    </script>
+</body>
+</html>
