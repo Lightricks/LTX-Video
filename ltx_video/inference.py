@@ -442,13 +442,15 @@ def infer(config: InferenceConfig):
             )
 
     seed_everething(config.seed)
-    if config.offload_to_cpu and not torch.cuda.is_available():
+    if config.offload_to_cpu and get_device() == "cpu":
         logger.warning(
             "offload_to_cpu is set to True, but offloading will not occur since the model is already running on CPU."
         )
         offload_to_cpu = False
     else:
-        offload_to_cpu = config.offload_to_cpu and get_total_gpu_memory() < 30
+        offload_to_cpu = config.offload_to_cpu and (
+            get_total_gpu_memory() < 30 or get_device() == "mps"
+        )
 
     output_dir = (
         Path(config.output_path)
