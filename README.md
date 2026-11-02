@@ -1,41 +1,31 @@
+> [!IMPORTANT]
+> **LTX-2.5 is the latest LTX model and is recommended for all new projects.**
+>
+> Released on August 11, 2026, LTX-2.5 supersedes both LTX-Video (v0.9.x) and LTX-2. It brings native multi-shot generation, synchronized audio and video, stronger prompt adherence, and better local performance.
+>
+> | Resource | Link |
+> |---|---|
+> | LTX-2.5 code and weights | https://github.com/Lightricks/LTX-2 |
+> | LTX-2.5 model overview | https://ltx.io/model/ltx-2-5 |
+> | LTX-2.5 documentation | https://docs.ltx.io/models/ltx-2-5 |
+> | LTX-Video v0.9.x models | This repository (see [Models](#models)) |
+>
+> This repository is no longer under active development. It remains available for anyone who needs the original v0.9.x models, for example to reproduce published results or maintain existing workflows. Thank you to everyone who built with LTX-Video.
+
 <div align="center">
 
-# LTX-Video
+# LTX-Video (Legacy)
 
-[![Website](https://img.shields.io/badge/Website-LTXV-181717?logo=google-chrome)](https://ltx.video)
+**The original LTX video generation model (v0.9.x)**
+
+[![Website](https://img.shields.io/badge/Website-LTX-181717?logo=google-chrome)](https://ltx.io/model/ltx-2-5)
 [![Model](https://img.shields.io/badge/HuggingFace-Model-orange?logo=huggingface)](https://huggingface.co/Lightricks/LTX-Video)
 [![Demo](https://img.shields.io/badge/Demo-Try%20Now-brightgreen?logo=vercel)](https://app.ltx.studio/ltx-2-playground/t2v)
 [![Paper](https://img.shields.io/badge/Paper-arXiv-B31B1B?logo=arxiv)](https://arxiv.org/abs/2501.00103)
 [![Trainer](https://img.shields.io/badge/LTXV-Trainer-9146FF?logo=github)](https://github.com/Lightricks/LTX-Video-Trainer)
 [![Discord](https://img.shields.io/badge/Join-Discord-5865F2?logo=discord)](https://discord.gg/ltxplatform)
 
-This is the official repository for LTX-Video.
-
 </div>
-
----
-
-## 🚀 **New: LTX-2 is Now Available!**
-
-**We're excited to announce [LTX-2](https://github.com/Lightricks/LTX-2) - the next generation of LTX with synchronized audio+video generation!**
-
-LTX-2 is the first DiT-based audio-video foundation model that contains all core capabilities of modern video generation in one model. **LTX-2 is now the primary home for LTX development** and includes significant improvements:
-
-- 🎵 **Synchronized Audio+Video Generation** - Generate videos with perfectly synchronized audio
-- 🎬 **Latest Model** - LTX-2 with improved quality and capabilities
-- 🔌 **ComfyUI Integration** - Built into ComfyUI core for seamless workflows
-- 🎯 **Advanced Features:**
-  - Multiple keyframe support
-  - IC-LoRA control models for precise generation
-  - Standard LoRA support for style customization
-  - Latent upsampler for multiscale pipelines
-- 🛠️ **Training Tools** - LoRA training capabilities
-- 📚 **Comprehensive Documentation** - Full documentation at [https://docs.ltx.video](https://docs.ltx.video)
-- 🔄 **Active Development** - Ongoing improvements and community support
-
-**[👉 Check out LTX-2 here](https://github.com/Lightricks/LTX-2)**
-
-**[📖 View Documentation](https://docs.ltx.video)**
 
 ---
 
@@ -83,6 +73,10 @@ The model supports image-to-video, multi-keyframe conditioning, keyframe-based a
 
 # News
 
+## August 11, 2026: LTX-2.5 Released
+
+LTX-2.5 is the latest LTX model. Code and weights are in the [LTX-2 repository](https://github.com/Lightricks/LTX-2). See the [model page](https://ltx.io/model/ltx-2-5) and [documentation](https://docs.ltx.io/models/ltx-2-5).
+
 ## October 23, 2025: LTX-2 Announced
 
 Today we announced our newest foundation model, LTX-2. LTX-2 represents a major leap forward from our previous model, LTXV 0.9.8. Here’s what’s new:
@@ -92,7 +86,7 @@ Today we announced our newest foundation model, LTX-2. LTX-2 represents a major 
 * **Low Cost & Efficiency**: Up to 50% lower compute cost than competing models, powered by a multi-GPU inference stack.
 * **Creative Control**: Multi-keyframe conditioning, 3D camera logic, and LoRA fine-tuning deliver frame-level precision and style consistency.
 
-For more details, please see our [blog post](https://website.ltx.video/blog/introducing-ltx-2). LTX-2 model weights, code, and benchmarks will be released to the community later in 2025. 
+For more details, please see our [blog post](https://ltx.io/blog/introducing-ltx-2-a-new-chapter-in-generative-ai). LTX-2 model weights, code, and benchmarks will be released to the community later in 2025. 
 
 
 ## July, 16th, 2025: New Distilled models v0.9.8 with up to 60 seconds of video:
@@ -373,6 +367,16 @@ More information and training instructions can be found in the [README](https://
 Pose Control, Depth Control and Canny Control
 
 **Example ComfyUI Workflow (for all control types):** [ic-lora.json](https://github.com/Lightricks/ComfyUI-LTXVideo/blob/master/example_workflows/ic_lora/ic-lora.json)
+
+# License
+
+The code in this repository is licensed under [Apache-2.0](LICENSE).
+
+Model weights are licensed separately:
+- **LTX-2.5** (latest): [LTX-2.x Community License](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)
+- **LTX-2**: [LTX-2 Community License](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2)
+
+Commercial licensing information: [ltx.io/model/license](https://ltx.io/model/license)
 
 # Join Us
 
