@@ -7,6 +7,7 @@ from typing import Optional, List, Union
 import yaml
 
 import imageio
+from itertools import islice
 import json
 import numpy as np
 import torch
@@ -691,12 +692,10 @@ def get_media_num_frames(media_path: str) -> int:
     is_video = any(
         media_path.lower().endswith(ext) for ext in [".mp4", ".avi", ".mov", ".mkv"]
     )
-    num_frames = 1
     if is_video:
-        reader = imageio.get_reader(media_path)
-        num_frames = reader.count_frames()
-        reader.close()
-    return num_frames
+        with imageio.get_reader(media_path) as reader:
+            return reader.count_frames()
+    return 1
 
 
 def load_media_file(
@@ -711,19 +710,17 @@ def load_media_file(
         media_path.lower().endswith(ext) for ext in [".mp4", ".avi", ".mov", ".mkv"]
     )
     if is_video:
-        reader = imageio.get_reader(media_path)
-        num_input_frames = min(reader.count_frames(), max_frames)
-
-        # Read and preprocess the relevant frames from the video file.
         frames = []
-        for i in range(num_input_frames):
-            frame = Image.fromarray(reader.get_data(i))
-            frame_tensor = load_image_to_tensor_with_resize_and_crop(
-                frame, height, width, just_crop=just_crop
-            )
-            frame_tensor = torch.nn.functional.pad(frame_tensor, padding)
-            frames.append(frame_tensor)
-        reader.close()
+        with imageio.get_reader(media_path) as reader:
+            for frame_data in islice(reader, max_frames):
+                frame = Image.fromarray(frame_data)
+                frame_tensor = load_image_to_tensor_with_resize_and_crop(
+                    frame, height, width, just_crop=just_crop
+                )
+                frame_tensor = torch.nn.functional.pad(frame_tensor, padding)
+                frames.append(frame_tensor)
+        if not frames:
+            raise ValueError(f"No conditioning frames could be read from {media_path!r}")
 
         # Stack frames along the temporal dimension
         media_tensor = torch.cat(frames, dim=2)
